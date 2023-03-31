@@ -7,29 +7,40 @@ import copy
 import math
 import rospy
 
-from ur_control_moveit import arm, ur_gripper_controller, random_pose, ft_sensor
+from ur_control_moveit import arm, ur_gripper_controller, random_pose, ft_sensor, get_object_pose
 
 
 class Ur_control(object):
     def __init__(self):
         super(Ur_control, self).__init__()
+
         self.arm_control = arm.Arm_control("arm")
-        # self.gripper_control = gripper.Gripper_control()
-        self.random_pose = random_pose.Random_pose()
-        self.ft_sensor = ft_sensor.FT_message()
+        self.gc = ur_gripper_controller.GripperController()
+        self.rp = random_pose.Random_pose()
+        self.ft = ft_sensor.FT_message()
+        self.gop = get_object_pose.Get_object_pose()
+
         self.forward_basic_joint = [0.9419943318766126, -1.4060059478330746, 1.4873566760577779, -1.6507993112633637, -1.5705307531751274, -0.629176246773139] # [1.57, -1.57, 1.26, -1.57, -1.57, 0]
         self.backward_basic_joint = [-2.234010390909684, -1.3927192120354697, 1.472050134256044, -1.65123476873738, -1.5690119071493065, -0.629176246773139] # [-1.57, -1.57, 1.26, -1.57, -1.57, 0]
-        self.forward_basic_anguler = [3.14, 0, 0]
+        self.mid_basic_joint = [0, -1.3927192120354697, 1.472050134256044, -1.65123476873738, -1.5690119071493065, -0.629176246773139] # [-1.57, -1.57, 1.26, -1.57, -1.57, 0]
+        self.forward_basic_anguler = [3.14, 0, 1.57] # 1.57
         self.backward_basic_anguler = [3.14, 0, 3.14]
 
-    def go_default_pose(self, area):
+        self.gc.rq_reset()
+        self.gc.rq_activate()
+        self.gc.rq_init_gripper(speed=180, force=1)
+
+    def go_default_pose(self, area = ""):
         if area == "forwrad":
             base_joint = self.forward_basic_joint
-        else:
+        elif area == "backwrad":
             base_joint = self.backward_basic_joint
+        else:
+            base_joint = self.mid_basic_joint
         self.arm_control.go_to_joint_state(base_joint)
 
     def pick(self, goal_pose):
+        self.gc.rq_gripper_move_to(0)
         if goal_pose.position.y > 0:
             area = "forwrad"
             base_e = self.forward_basic_anguler
@@ -38,15 +49,26 @@ class Ur_control(object):
             base_e = self.backward_basic_anguler
         self.go_default_pose(area)
 
+        ### test ###
+        # goal_pose.position.x = 0
+        # goal_pose.position.y = 0.35
+        # po=self.arm_control.get_current_pose()
+        # e = list(self.arm_control.quaternion_to_euler(quaternion = po.orientation))
+        # print(e)
+        ### end ###
+
         pose = copy.deepcopy(goal_pose)
         # print("pick: \n", pose)
         e = list(self.arm_control.quaternion_to_euler(quaternion = pose.orientation))
         q = self.arm_control.euler_to_quaternion(euler = [base_e[0] + e[0], base_e[1] + e[1], base_e[2] + e[2]])
-        pose.position.z = 0.35
+        # q = self.arm_control.euler_to_quaternion(euler = base_e)
+        pose.position.z = 0.20
         pick_success = self.arm_control.go_to_pose(pose = pose, ori = q.tolist())
         if pick_success:
-            goal_pose.position.z = 0.15 # or goal_pose.position.z
+            goal_pose.position.z += 0.007 # or goal_pose.position.z 0.02
             pick_success = self.arm_control.go_to_pose(pose = goal_pose, ori = q.tolist())
+            rospy.sleep(0.2)
+            self.gc.rq_gripper_move_to(70)
             rospy.sleep(0.5)
             self.arm_control.go_to_pose(pose = pose, ori = q.tolist())
         
@@ -70,11 +92,13 @@ class Ur_control(object):
         # print("place: \n", pose)
         e = list(self.arm_control.quaternion_to_euler(quaternion = pose.orientation))
         q = self.arm_control.euler_to_quaternion(euler = [base_e[0] + e[0], base_e[1] + e[1], base_e[2] + e[2]])
-        pose.position.z = 0.35
+        pose.position.z = 0.20
         place_success = self.arm_control.go_to_pose(pose = pose, ori = q.tolist())
         if place_success:
-            goal_pose.position.z = 0.15 # or goal_pose.position.z
+            goal_pose.position.z = 0.05 # or goal_pose.position.z
             place_success = self.arm_control.go_to_pose(pose = goal_pose, ori = q.tolist())
+            rospy.sleep(0.2)
+            self.gc.rq_gripper_move_to(1)
             rospy.sleep(0.5)
             self.arm_control.go_to_pose(pose = pose, ori = q.tolist())
 
@@ -96,9 +120,9 @@ class Ur_control(object):
         else:
             place_area = "dish1"
 
-        pick_pose = self.random_pose.random_pose(area = pick_area)
+        pick_pose = self.rp.random_pose(area = pick_area)
         pick_pose = self.arm_control.chage_type(pick_pose)
-        place_pose = self.random_pose.random_pose(area = place_area)
+        place_pose = self.rp.random_pose(area = place_area)
         place_pose = self.arm_control.chage_type(place_pose)
 
 
@@ -107,7 +131,6 @@ class Ur_control(object):
         if pick_success:
             place_success = self.place(place_pose)
             print("place_success", place_success)
-            self.place(place_pose)
 
 
     def gripper_action(self):
@@ -120,18 +143,18 @@ class Ur_control(object):
         sweep_posi = []
         rospy.sleep(0.2)
         if area == "forwrad":
-            sweep_posi = [[0.2, 0.35, 0.35],
+            sweep_posi = [[0.2, 0.35, 0.23],
                          [0.2, 0.35, 0.135],
                          [-0.075, 0.35, 0.135],
-                         [0.2, 0.27, 0.35],
+                         [0.2, 0.27, 0.23],
                          [0.2, 0.27, 0.135],
                          [-0.075, 0.27, 0.135]]
             base_e = self.forward_basic_anguler
         elif area == "backwrad":
-            sweep_posi = [[-0.21, -0.35, 0.35],
+            sweep_posi = [[-0.21, -0.35, 0.23],
                          [-0.21, -0.35, 0.135],
                          [0.075, -0.35, 0.135],
-                         [-0.21, -0.27, 0.35],
+                         [-0.21, -0.27, 0.23],
                          [-0.21, -0.27, 0.135],
                          [0.075, -0.27, 0.135]]
             base_e = self.backward_basic_anguler
@@ -158,7 +181,7 @@ class Ur_control(object):
         print(self.arm_control.get_current_joint())
 
     def ft_test(self):
-        print(self.ft_sensor.get_ft_message())
+        print(self.ft.get_ft_message())
         rospy.sleep(0.3)
         # model name of picking target
         target_model = "box3"
@@ -185,63 +208,79 @@ class Ur_control(object):
         self.arm_control.go_to_joint_state(pick_basic_joint)
 
     def test(self):
-        gc = ur_gripper_controller.GripperController()
-        print('gripper state:', gc.rq_gripper_state_eval())
-        print('gripper activated?:', gc.rq_is_gripper_activate())
+        # po=self.arm_control.get_current_pose()
+        # print(po)
+        # e = list(self.arm_control.quaternion_to_euler(quaternion = po.orientation))
+        # print(e)
         
-        # gripper re-activation
-        gc.rq_reset()
-        gc.rq_activate()
+        # jo=self.arm_control.get_current_joint()
+        # print(jo)
 
-        # set speed and force
-        gc.rq_init_gripper(speed=255, force=255)
-        print('gripper activated?:', gc.rq_is_gripper_activate())
 
-        time.sleep(1)
+        pick_area = "bin1"
+        place_area = "dish1"
+        num_obj = 2
 
-        # repeat open and close motion
-        gc.rq_gripper_open()
-        gc.rq_gripper_close()
-        gc.rq_gripper_open()
+        for obj_dx in range(num_obj):
+            self.arm_control.go_to_joint_state(self.mid_basic_joint)
+            p1, p2 = self.gop.get_pose()
+            # print("Chikuwa: ", p1)
+            # print("shrimp: ", p2)
+            pick_pose = p1 if obj_dx == 0 else p2
+            place_pose = self.rp.random_pose(area = place_area)
+            place_pose = self.arm_control.chage_type(place_pose)
 
-        gc.socket_close()
+
+            pick_success = self.pick(pick_pose)
+            print("pick_success: ", pick_success)
+            if pick_success:
+                place_success = self.place(place_pose)
+                print("place_success", place_success)
+
+            self.gc.rq_gripper_move_to(1)
+
+
+        
 
 
 def main():
     try:
         action = Ur_control()
 
+        # action.go_default_pose(area="forwrad")
         action.test()
 
         # num_obj = 1
         # action.go_default_pose(area="forwrad")
 
 
-        # start = time.time()
+        # # start = time.time()
         # for idx in range(num_obj):
         #     print(idx+1)
         #     action.pick_and_place(pick_area = "forwrad", place_area = "forwrad")
 
-        # action.self_reset(area = "forwrad")
+        # # action.self_reset(area = "forwrad")
 
-        # end = time.time() - start
-        # print("Time to grasp and place and sweep %d number of objects (starting in area 1): %s" % (num_obj, end))
+        # # end = time.time() - start
+        # # print("Time to grasp and place and sweep %d number of objects (starting in area 1): %s" % (num_obj, end))
 
-        # start = time.time()
+        # # start = time.time()
         # action.go_default_pose(area="backwrad")
-        # end = time.time() - start
-        # print("Time to turn around.: ", end)
+        # # end = time.time() - start
+        # # print("Time to turn around.: ", end)
 
 
-        # start = time.time()
+        # # start = time.time()
         # for idx in range(num_obj):
         #     print(idx+1)
         #     action.pick_and_place(pick_area = "backwrad", place_area = "backwrad")
 
-        # action.self_reset(area = "backwrad")
+        # # action.self_reset(area = "backwrad")
 
-        # end = time.time() - start
-        # print("Time to grasp and place and sweep %d number of objects (starting in area 2): %s" % (num_obj, end))
+        # # end = time.time() - start
+        # # print("Time to grasp and place and sweep %d number of objects (starting in area 2): %s" % (num_obj, end))
+
+        action.go_default_pose(area="")
 
     except rospy.ROSInterruptException:
         return

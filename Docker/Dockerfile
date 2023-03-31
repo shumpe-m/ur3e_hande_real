@@ -59,9 +59,12 @@ RUN cd /root/catkin_ws \
 ##############
 ### ur pkg ###
 ##############
+# RUN cd /root/catkin_ws \
+#     && git clone -b noetic-real https://github.com/shumpe-m/ur3.git src/ros_ur3 \
+#     && git clone -b main https://github.com/shumpe-m/ur3e_hande_real.git src/ur3e_hande_real
 RUN cd /root/catkin_ws \
-    && git clone -b noetic-real https://github.com/shumpe-m/ur3.git src/ros_ur3 \
-    && git clone -b main https://github.com/shumpe-m/ur3e_hande_real.git src/ur3e_hande_real
+    && git clone -b noetic-real https://github.com/shumpe-m/ur3.git src/ros_ur3
+COPY . /root/catkin_ws/src/ur3e_hande_real/
 
 RUN rm -rf /etc/ros/rosdep/sources.list.d/20-default.list
 RUN cd /root/catkin_ws \
@@ -72,7 +75,7 @@ RUN cd /root/catkin_ws \
     && echo "source /root/catkin_ws/devel/setup.bash" >> ~/.bashrc \
     && echo "export ROS_PACKAGE_PATH=\${ROS_PACKAGE_PATH}:/root/catkin_ws" >> ~/.bashrc \
     && echo "export ROS_WORKSPACE=/root/catkin_ws" >> ~/.bashrc \
-    && echo "chmod -R u+x /root/catkin_ws/src/FT_300s_ur3e/ur_control_scripts/scripts" >> ~/.bashrc
+    && echo "chmod -R u+x /root/catkin_ws/src/ur3e_hande_real/ur_control_scripts/scripts" >> ~/.bashrc
 
 
 RUN echo "cd /root/catkin_ws" >> ~/.bashrc

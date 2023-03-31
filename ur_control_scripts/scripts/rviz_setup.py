@@ -38,7 +38,7 @@ class Rviz_setup(object):
         super(Rviz_setup, self).__init__()
 
         moveit_commander.roscpp_initialize(sys.argv)
-        rospy.init_node("ur_planner", anonymous=True)
+        rospy.init_node("ur_planner", anonymous=False)
         robot = moveit_commander.RobotCommander()
         scene = moveit_commander.PlanningSceneInterface()
         self.name = name
@@ -162,7 +162,7 @@ def main():
         setup.add_box(name = "base_box_1", pose = [0, 0, 0.0525], size = [table_length[0], 0.21, 0.104])
         setup.add_box(name = "base_box_2", pose = [(table_length[0] - 0.125) / 2, 0, 0.0525], size = [0.125, 0.4, 0.104])
         setup.add_box(name = "base_box_3", pose = [-(table_length[0] - 0.125) / 2, 0, 0.0525], size = [0.125, 0.4, 0.104])
-        setup.add_box(name = "table", pose = [0, 0, -0.0025], size = [table_length[0], table_length[1], 0.005])
+        setup.add_box(name = "table", pose = [0, 0, 0], size = [table_length[0], table_length[1], 0.005])
 
         # restriction
         wall_height = 1.0

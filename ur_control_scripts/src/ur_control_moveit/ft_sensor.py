@@ -27,11 +27,10 @@ class FT_message(object):
 
     def collision_avoidance(self):
         ft_msg = self.get_ft_message()
-        collision_flag = True if abs(ft_msg.wrench.force.x) >= 2.5 or abs(ft_msg.wrench.force.y) >= 2.5 or abs(ft_msg.wrench.force.z) >= 2.0 else False
+        collision_flag = True if abs(ft_msg.wrench.force.x) >= 40 or abs(ft_msg.wrench.force.y) >= 40 or ft_msg.wrench.force.z >= 40 else False
         # print(ft_msg.wrench.force)
         if collision_flag:
             print("############# Contacted #############\n", ft_msg.wrench)
 
 
         return collision_flag
-        

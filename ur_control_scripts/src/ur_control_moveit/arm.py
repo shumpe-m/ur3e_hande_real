@@ -20,10 +20,8 @@ import moveit_msgs.msg
 import geometry_msgs.msg
 
 from ur_control_moveit import ft_sensor
-from gazebo_msgs.msg import ModelStates
 
 import numpy as np
-
 try:
     from math import pi, tau, dist, fabs, cos
 except:  # For Python 2 compatibility
@@ -71,7 +69,7 @@ class Arm_control(object):
         super(Arm_control, self).__init__()
 
         moveit_commander.roscpp_initialize(sys.argv)
-        rospy.init_node("ur_planner", anonymous=True)
+        rospy.init_node("ur_planner", anonymous=False)
         robot = moveit_commander.RobotCommander()
         scene = moveit_commander.PlanningSceneInterface()
         self.name = name
@@ -87,7 +85,7 @@ class Arm_control(object):
         print("============ Planning frame: %s" % planning_frame)
 
         # We can also print the name of the end-effector link for this group:
-        # move_group.set_end_effector_link("ur_gripper_tip_link")
+        move_group.set_end_effector_link("ur_gripper_tip_link") # or tool0
         eef_link = move_group.get_end_effector_link()
         print("============ End effector link: %s" % eef_link)
 
@@ -103,7 +101,7 @@ class Arm_control(object):
 
         # planning_time = 10 # [s]
         # move_group.set_planning_time(planning_time)
-        move_group.set_goal_tolerance(0.01)
+        move_group.set_goal_tolerance(0.005)
         move_group.set_max_velocity_scaling_factor(0.1)
         ## END_SUB_TUTORIAL
 
@@ -404,7 +402,7 @@ class Arm_control(object):
 
         return e
 
-    def get_current_pose(self, end_effector_link_name = "tool0"):
+    def get_current_pose(self, end_effector_link_name = "ur_gripper_tip_link"):
         """
         Get the current robot pose.
 

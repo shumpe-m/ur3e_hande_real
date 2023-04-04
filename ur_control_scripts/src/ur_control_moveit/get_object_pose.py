@@ -21,7 +21,7 @@ class Get_object_pose(object):
         self.mf.registerCallback(self.callbackVector)
 
         self.ct = coordinate_transformation.Coordinate_transformation()
-        self.mocap_offset = [0.02715, 0.2977, 0.00876, 1.5708, 0.0, 3.14159] # [0.0160, 0.3077, 0.0, 0.0, 0.7071, 0.7071, 0.0]
+        self.mocap_offset = [0.02879, 0.3333, 0.0, -1.5708, 0.0, 0.0] #xzy  [0.0160, 0.3077, 0.0, 0.0, 0.7071, 0.7071, 0.0]
 
 
     def callbackVector(self, msg1, msg2):
@@ -47,9 +47,5 @@ class Get_object_pose(object):
         pose = self.ct.transform(pose, self.mocap_offset)
 
         return pose
-
-
-
-
 
 

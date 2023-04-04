@@ -162,7 +162,7 @@ def main():
         setup.add_box(name = "base_box_1", pose = [0, 0, 0.0525], size = [table_length[0], 0.21, 0.104])
         setup.add_box(name = "base_box_2", pose = [(table_length[0] - 0.125) / 2, 0, 0.0525], size = [0.125, 0.4, 0.104])
         setup.add_box(name = "base_box_3", pose = [-(table_length[0] - 0.125) / 2, 0, 0.0525], size = [0.125, 0.4, 0.104])
-        setup.add_box(name = "table", pose = [0, 0, 0], size = [table_length[0], table_length[1], 0.005])
+        setup.add_box(name = "table", pose = [0, 0, 0], size = [table_length[0], table_length[1], 0.01])
 
         # restriction
         wall_height = 1.0

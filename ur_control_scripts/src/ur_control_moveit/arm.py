@@ -31,39 +31,6 @@ except:  # For Python 2 compatibility
         return sqrt(sum((p_i - q_i) ** 2.0 for p_i, q_i in zip(p, q)))
 
 
-
-# def all_close(goal, actual, tolerance, premitive = ""):
-#     if type(goal) is list:
-#         for index in range(len(goal)):
-#             if abs(actual[index] - goal[index]) > tolerance:
-#                 return False
-
-#     elif type(goal) is geometry_msgs.msg.PoseStamped:
-#         return all_close(goal.pose, actual.pose, tolerance)
-    
-#     elif premitive == "ori":
-#         x0, y0, z0, qx0, qy0, qz0, qw0 = pose_to_list(actual)
-#         x1, y1, z1, qx1, qy1, qz1, qw1 = pose_to_list(goal)
-#         # phi = angle between orientations
-#         cos_phi_half = fabs(qx0 * qx1 + qy0 * qy1 + qz0 * qz1 + qw0 * qw1)
-#         #print(d, tolerance,cos_phi_half,cos(tolerance / 2.0))
-#         #print(cos_phi_half, cos(tolerance / 2.0))
-#         return cos_phi_half >= cos(tolerance / 2.0)
-
-
-#     elif type(goal) is geometry_msgs.msg.Pose:
-#         x0, y0, z0, qx0, qy0, qz0, qw0 = pose_to_list(actual)
-#         x1, y1, z1, qx1, qy1, qz1, qw1 = pose_to_list(goal)
-#         # Euclidean distance
-#         d = dist((x1, y1, z1), (x0, y0, z0))
-#         # phi = angle between orientations
-#         cos_phi_half = fabs(qx0 * qx1 + qy0 * qy1 + qz0 * qz1 + qw0 * qw1)
-#         print(d, tolerance,cos_phi_half,cos(tolerance / 2.0))
-#         return d <= tolerance and cos_phi_half >= cos(tolerance / 2.0)
-
-#     return True
-
-
 class Arm_control(object):
     def __init__(self, name = 'arm'):
         super(Arm_control, self).__init__()
@@ -80,38 +47,19 @@ class Arm_control(object):
             moveit_msgs.msg.DisplayTrajectory,
             queue_size=20,
         )
-        # We can get the name of the reference frame for this robot:
-        planning_frame = move_group.get_planning_frame()
-        print("============ Planning frame: %s" % planning_frame)
 
-        # We can also print the name of the end-effector link for this group:
+        # Set the end-effector link for this group:
         move_group.set_end_effector_link("ur_gripper_tip_link") # or tool0
-        eef_link = move_group.get_end_effector_link()
-        print("============ End effector link: %s" % eef_link)
-
-        # We can get a list of all the groups in the robot:
-        group_names = robot.get_group_names()
-        print("============ Available Planning Groups:", robot.get_group_names())
-
-        # Sometimes for debugging it is useful to print the entire state of the
-        # robot:
-        print("============ Printing robot state")
-        print(robot.get_current_state())
-        print("")
 
         # planning_time = 10 # [s]
         # move_group.set_planning_time(planning_time)
         move_group.set_goal_tolerance(0.005)
-        move_group.set_max_velocity_scaling_factor(0.1)
+        move_group.set_max_velocity_scaling_factor(0.05)
         ## END_SUB_TUTORIAL
 
         self.robot = robot
         self.scene = scene
         self.move_group = move_group
-        self.display_trajectory_publisher = display_trajectory_publisher
-        self.planning_frame = planning_frame
-        self.eef_link = eef_link
-        self.group_names = group_names
 
         self.ft_sensor = ft_sensor.FT_message()
         self.thread_1_resut = False
@@ -132,18 +80,21 @@ class Arm_control(object):
         
         move_group.set_joint_value_target(joint_ang)
         plan_success, plan, planningtime, error_code = move_group.plan()
-        self.ft_sensor.reset_ftsensor()
-        thread_1 = threading.Thread(target=move_group.execute, args=(plan, True))
-        thread_2 = threading.Thread(target=self.stop_action, args=(self.ft_sensor.collision_avoidance,))
-        thread_1.start()
-        thread_2.start()
-        thread_1.join()
-        self.thread_1_result = True
-        thread_2.join()
+
+        # self.ft_sensor.reset_ftsensor()
+        # thread_1 = threading.Thread(target=move_group.execute, args=(plan, True))
+        # thread_2 = threading.Thread(target=self.stop_action, args=(self.ft_sensor.collision_avoidance,))
+        # thread_1.start()
+        # thread_2.start()
+        # thread_1.join()
+        # self.thread_1_result = True
+        # thread_2.join()
+
+        move_group.execute(plan, True)
+
         move_group.stop()
         move_group.clear_pose_targets()
-        # current_joints = move_group.get_current_joint_values()
-        # return all_close(joint_goal, current_joints, 0.01)
+
 
     def go_to_position(self, position=[0,0,0]):
         """
@@ -162,7 +113,7 @@ class Arm_control(object):
         """
         # end effector set
         move_group = self.move_group
-        move_group.set_max_velocity_scaling_factor(0.2)
+        move_group.set_max_velocity_scaling_factor(0.1)
         # move_group.set_end_effector_link("ur_gripper_tip_link")
         self.thread_1_result = False
 
@@ -215,7 +166,7 @@ class Arm_control(object):
         """
         # end effector set
         move_group = self.move_group
-        move_group.set_max_velocity_scaling_factor(0.1)
+        move_group.set_max_velocity_scaling_factor(0.075)
         # move_group.set_end_effector_link("ur_gripper_tip_link")
         self.thread_1_result = False
 
@@ -318,42 +269,21 @@ class Arm_control(object):
             Return value is a bool value Contact = True
 
         """
+        move_group = self.move_group
         while (not self.thread_1_result):
             if collision_func():
-                move_group = self.move_group
                 move_group.stop()
+                move_group.clear_pose_targets()
                 wpose = move_group.get_current_pose().pose
-                wpose.position.z += 0.02
-                self.go_to_position(wpose)
+                wpose.position.z += 0.05
+                move_group.set_pose_target(wpose)
+                # Founding motion plan
+                plan_success, plan, planningtime, error_code = move_group.plan()
+                move_group.execute(plan, True)
+                move_group.stop()
+                move_group.clear_pose_targets()
                 break
-            rospy.sleep(0.005)
-
-
-    # def plan_path(self, scale=0.1):
-    #     move_group = self.move_group
-    #     waypoints = []
-    #     joint_goal = move_group.get_current_joint_values()
-    #     wpose = move_group.get_current_pose().pose
-    #     wpose.position.y = 0.2
-    #     waypoints.append(copy.deepcopy(wpose))
-
-    #     (plan, fraction) = move_group.compute_cartesian_path(
-    #         waypoints, 0.02, 0.0  # waypoints to follow  # eef_step
-    #     )
-    #     return plan, fraction
-
-
-    # def display_trajectory(self, plan):
-    #     robot = self.robot
-    #     display_trajectory_publisher = self.display_trajectory_publisher
-    #     display_trajectory = moveit_msgs.msg.DisplayTrajectory()
-    #     display_trajectory.trajectory_start = robot.get_current_state()
-    #     display_trajectory.trajectory.append(plan)
-    #     display_trajectory_publisher.publish(display_trajectory)
-
-    # def execute_plan(self, plan):
-    #     move_group = self.move_group
-    #     move_group.execute(plan, wait=True)
+            # rospy.sleep(0.1)
 
 
     def euler_to_quaternion(self, euler = [3.140876586229683, 0.0008580159308600959, -0.0009655065200909574]):
@@ -377,7 +307,7 @@ class Arm_control(object):
         else:
             print("The type of variables is different.")
 
-        return q
+        return list(q)
 
     def quaternion_to_euler(self, quaternion):
         """
@@ -400,7 +330,7 @@ class Arm_control(object):
         else:
             print("The type of variables is different.")
 
-        return e
+        return list(e)
 
     def get_current_pose(self, end_effector_link_name = "ur_gripper_tip_link"):
         """
@@ -440,7 +370,6 @@ class Arm_control(object):
         move_group = self.move_group
         # move_group.set_end_effector_link("ur_gripper_tip_link")
         q = self.euler_to_quaternion(pose[3:])
-        q = q.tolist()
 
         wpose = move_group.get_current_pose().pose
 

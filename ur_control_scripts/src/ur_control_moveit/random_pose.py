@@ -48,9 +48,9 @@ class Random_pose():
             state_msg[1] = np.sin(rand[1] * 2 * np.pi) * (self.dish_radius) + self.dish3_center[1]
         else:
             print("Input Error: 'area'")
-        state_msg[2] = 0.9
+        state_msg[2] = 0.03
 
-        e = tf.transformations.quaternion_from_euler((rand[2] - 0.5) * np.pi + np.pi/4, (rand[3] - 0.5) * np.pi + np.pi/4, (rand[4] - 0.5) * np.pi + np.pi/4)
+        e = tf.transformations.quaternion_from_euler((rand[2] - 0.5) * np.pi + np.pi/6, (rand[3] - 0.5) * np.pi + np.pi/6, (rand[4] - 0.5) * np.pi + np.pi/6)
         state_msg[3] = e[0]
         state_msg[4] = e[1]
         state_msg[5] = e[2]

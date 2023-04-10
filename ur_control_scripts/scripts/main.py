@@ -7,7 +7,8 @@ import copy
 import math
 import rospy
 
-from ur_control_moveit import arm, ur_gripper_controller, random_pose, ft_sensor, get_object_pose
+from ur_control_moveit import arm, ur_gripper_controller, random_pose, ft_sensor
+from motion_capture import get_object_pose
 
 
 class Ur_control(object):
@@ -24,7 +25,7 @@ class Ur_control(object):
         self.backward_basic_joint = [-2.234010390909684, -1.3927192120354697, 1.472050134256044, -1.65123476873738, -1.5690119071493065, -0.629176246773139] # [-1.57, -1.57, 1.26, -1.57, -1.57, 0]
         self.mid_basic_joint = [0, -1.3927192120354697, 1.472050134256044, -1.65123476873738, -1.5690119071493065, -0.629176246773139] # [-1.57, -1.57, 1.26, -1.57, -1.57, 0]
         self.forward_basic_anguler = [3.14, 0, 1.57]
-        self.backward_basic_anguler = [3.14, 0, -1.57] # [3.14, 0, -1.57]
+        self.backward_basic_anguler = [3.14, 0, 1.57] # [3.14, 0, -1.57]
 
         self.gc.rq_reset()
         self.gc.rq_activate()
@@ -59,7 +60,7 @@ class Ur_control(object):
 
         # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
         e = self.arm_control.quaternion_to_euler(quaternion = goal_pose.orientation)
-        q = self.arm_control.euler_to_quaternion(euler = [base_e[0] + e[0], base_e[1] + e[1], base_e[2] - e[2]])
+        q = self.arm_control.euler_to_quaternion(euler = [base_e[0] + e[0], base_e[1] - e[1], base_e[2] - e[2]])
 
         can_execute = self.arm_control.go_to_pose(pose = above_pose, ori = q)
         if can_execute:
@@ -101,7 +102,7 @@ class Ur_control(object):
 
         # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
         e = self.arm_control.quaternion_to_euler(quaternion = goal_pose.orientation)
-        q = self.arm_control.euler_to_quaternion(euler = [base_e[0] + e[0], base_e[1] + e[1], base_e[2] - e[2]])
+        q = self.arm_control.euler_to_quaternion(euler = [base_e[0] + e[0], base_e[1] - e[1], base_e[2] - e[2]])
         
         can_execute = self.arm_control.go_to_pose(pose = above_pose, ori = q)
         if can_execute:
@@ -109,7 +110,7 @@ class Ur_control(object):
             goal_pose.position.z += 0.04
             can_execute = self.arm_control.go_to_pose(pose = goal_pose, ori = q)
             # Move to the height of the target object position.
-            goal_pose.position.z -= 0.025
+            goal_pose.position.z -= 0.035
             can_execute = self.arm_control.go_to_pose(pose = goal_pose, ori = q) if can_execute else False
             rospy.sleep(0.2)
             # Open the gripper.
@@ -140,6 +141,33 @@ class Ur_control(object):
                 print("place_success", place_success)
 
             self.gc.rq_gripper_move_to(0)
+    
+    def mocap_pick_and_place(self):
+        self.set_goal_pose()
+
+        for obj_dx in range(self.num_obj):
+            self.arm_control.go_to_joint_state(self.mid_basic_joint)
+            current_pose = self.get_current_pose()
+
+            pick_success = self.pick(current_pose[obj_dx])
+            print("pick_success: ", pick_success)
+            if pick_success:
+                place_success = self.place(self.goal_pose[obj_dx])
+                print("place_success", place_success)
+
+            self.gc.rq_gripper_move_to(0)
+        self.go_default_pose(area="")
+
+
+        rospy.sleep(0.5)
+        print("goal_pose: ", self.goal_pose)
+        current_pose = self.get_current_pose()
+        print("current_pose: ", current_pose)
+        chikuwa = self.cal_squared_error(self.goal_pose[0], current_pose[0])
+        shrimp = self.cal_squared_error(self.goal_pose[1], current_pose[1])
+
+        print("chikuwa: \n",chikuwa)
+        print("shrimp: \n",shrimp)
 
     
     def self_reset(self, area="forwrad"):
@@ -192,12 +220,15 @@ class Ur_control(object):
         print("==============================================================")
         print("Now we are going to set a goal for the object.")
         input("When the goal pose of the object is complete, press 'Enter key'.")
-        rospy.sleep(0.4)
+        print("wait")
+        rospy.sleep(2.)
         self.goal_pose = self.get_current_pose()
         print("Goal pose received.")
         input("Disassemble the object in the opposite area.\n When you are done, press 'Enter key'.")
+        print("wait")
+        rospy.sleep(3.)
         print("==============================================================")
-        rospy.sleep(0.4)
+        
 
     def test(self):
         # po=self.arm_control.get_current_pose()
@@ -228,23 +259,37 @@ class Ur_control(object):
                 print("place_success", place_success)
 
             self.gc.rq_gripper_move_to(0)
-
-        # po.position.x = 0.00950398034465093
-        # po.position.y = 0.3485885118025321
-        # po.position.z = 0.07766230307384975
-
-        # place_success = self.arm_control.go_to_pose(pose = po, ori = po.orientation)
+        self.go_default_pose(area="")
 
 
+        rospy.sleep(0.5)
+        print("goal_pose: ", self.goal_pose)
+        current_pose = self.get_current_pose()
+        print("current_pose: ", current_pose)
+        chikuwa = self.cal_squared_error(self.goal_pose[0], current_pose[0])
+        shrimp = self.cal_squared_error(self.goal_pose[1], current_pose[1])
 
-        
+        print("chikuwa: \n",chikuwa)
+        print("shrimp: \n",shrimp)
+
+    def cal_squared_error(self, goal_pose, current_pose):
+        se_px = abs(goal_pose.position.x)  - abs(current_pose.position.x)  
+        se_py = abs(goal_pose.position.y) - abs(current_pose.position.y)
+        se_pz = abs(goal_pose.position.z) - abs(current_pose.position.z) 
+
+        se_qx = abs(goal_pose.orientation.x)  - abs(current_pose.orientation.x)  
+        se_qy = abs(goal_pose.orientation.y)  - abs(current_pose.orientation.y) 
+        se_qz = abs(goal_pose.orientation.z)  - abs(current_pose.orientation.z) 
+        se_qw = abs(goal_pose.orientation.w)  - abs(current_pose.orientation.w) 
+
+        return [se_px, se_py, se_pz, se_qx, se_qy, se_qz, se_qw]
 
 
 def main():
     try:
         action = Ur_control()
 
-        action.test()
+        action.mocap_pick_and_place()
         action.go_default_pose(area="")
 
     except rospy.ROSInterruptException:

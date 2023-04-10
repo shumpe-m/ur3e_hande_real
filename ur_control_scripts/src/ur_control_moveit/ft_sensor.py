@@ -11,8 +11,6 @@ class FT_message(object):
         # ros message
         self.sub_vector = rospy.Subscriber("/wrench", WrenchStamped, self.callbackVector)
         self.ft_message = WrenchStamped()
-        
-
 
     def callbackVector(self, msg):
         self.ft_message = msg
@@ -21,18 +19,35 @@ class FT_message(object):
         srv_msg = self.zero_ftsensor()
 
     def get_ft_message(self):
+        """
+        This function waits for input as the message may be empty.
+
+        Returns
+        -------
+        ft_message : class 'geometry_msgs.msg._Pose.Pose'
+            FT sensor value.
+        """
         while self.ft_message.header.frame_id == '':
             pass
 
         return self.ft_message
 
     def collision_avoidance(self):
+        """
+        This function determines that contact is made when a certain force is applied.
+        It may react when lifting things, but it does not change this one.
+        If it reacts other than when lifting, the value needs to be changed appropriately.
+
+        Returns
+        -------
+        deetect_contact : bool
+            Orientation of objects in the robot's coordinate system.
+        """
         ft_msg = self.get_ft_message()
-        collision_flag = True if abs(ft_msg.wrench.force.x) >= 6 or abs(ft_msg.wrench.force.y) >= 6 or ft_msg.wrench.force.z <= -6 else False
+        deetect_contact = True if abs(ft_msg.wrench.force.x) >= 6 or abs(ft_msg.wrench.force.y) >= 6 or ft_msg.wrench.force.z <= -6 else False
         # print(ft_msg.wrench)
-        if collision_flag:
+        if deetect_contact:
             print("############# Contacted #############\n", ft_msg.wrench)
 
-
-        return collision_flag
+        return deetect_contact
         

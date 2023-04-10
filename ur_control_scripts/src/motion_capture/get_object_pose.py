@@ -2,7 +2,7 @@ import rospy
 import numpy as np
 import message_filters
 from geometry_msgs.msg import PoseStamped
-from ur_control_moveit import coordinate_transformation
+from motion_capture import coordinate_transformation
 
 class Get_object_pose(object):
     def __init__(self):
@@ -30,7 +30,17 @@ class Get_object_pose(object):
 
 
     def get_pose(self):
-        # get object pose
+        """
+        This function obtains the object's orientation from the motion capture.
+
+        Returns
+        -------
+        Chikuwa_pose : class 'geometry_msgs.msg._Pose.Pose'
+            Chikuwa's posture.
+
+        Shrimp_pose : class 'geometry_msgs.msg._Pose.Pose'
+            Shrimp's posture.
+        """
         while self.Chikuwa_pose.header.frame_id == '' and self.Shrimp_pose.header.frame_id == '':
             pass
         self.Chikuwa_pose = self.pose_normalization(self.Chikuwa_pose)
@@ -38,6 +48,14 @@ class Get_object_pose(object):
         return self.Chikuwa_pose, self.Shrimp_pose
 
     def pose_normalization(self, msg):
+        """
+        This function normalizes the coordinate axes and positions of the motion capture and robot.
+
+        Returns
+        -------
+        pose : class 'geometry_msgs.msg._Pose.Pose'
+            The posture of the object in the coordinate space of the robot (Rviz).
+        """
         pose = PoseStamped().pose
         # pose.position.x = msg.pose.position.x
         # pose.position.y = msg.pose.position.z

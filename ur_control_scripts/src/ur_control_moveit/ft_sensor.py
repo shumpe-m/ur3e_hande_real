@@ -2,9 +2,9 @@ import rospy
 from geometry_msgs.msg import WrenchStamped
 from std_srvs.srv import Trigger
 
-class FT_message(object):
+class FtMessage(object):
     def __init__(self):
-        super(FT_message, self).__init__()
+        super(FtMessage, self).__init__()
         # ros service
         rospy.wait_for_service("/ur_hardware_interface/zero_ftsensor")
         self.zero_ftsensor = rospy.ServiceProxy("/ur_hardware_interface/zero_ftsensor", Trigger)

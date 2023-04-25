@@ -33,9 +33,9 @@ except:  # For Python 2 compatibility
         return sqrt(sum((p_i - q_i) ** 2.0 for p_i, q_i in zip(p, q)))
 
 
-class Rviz_setup(object):
+class RvizSetup(object):
     def __init__(self, name = 'arm'):
-        super(Rviz_setup, self).__init__()
+        super(RvizSetup, self).__init__()
 
         moveit_commander.roscpp_initialize(sys.argv)
         rospy.init_node("ur_planner", anonymous=False)
@@ -155,7 +155,7 @@ class Rviz_setup(object):
 def main():
     try:
         print("----------------------------------------------------------")
-        setup = Rviz_setup("arm")
+        setup = RvizSetup("arm")
         # setup.add_box(name = "FAKE", pose = [3, 3, 0.05], size = [0.1, 0.1, 0.1])
         table_length = [0.9, 1.5]
 

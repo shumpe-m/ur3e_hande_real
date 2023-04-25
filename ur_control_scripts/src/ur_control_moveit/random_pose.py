@@ -1,7 +1,7 @@
 import numpy as np
 import tf
 
-class Random_pose():
+class RandomPose():
     def __init__(self):
         # workspace
         self.max_x = 0.2

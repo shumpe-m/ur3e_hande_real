@@ -31,9 +31,9 @@ except:  # For Python 2 compatibility
         return sqrt(sum((p_i - q_i) ** 2.0 for p_i, q_i in zip(p, q)))
 
 
-class Arm_control(object):
+class ArmControl(object):
     def __init__(self, name = 'arm'):
-        super(Arm_control, self).__init__()
+        super(ArmControl, self).__init__()
 
         moveit_commander.roscpp_initialize(sys.argv)
         rospy.init_node("ur_planner", anonymous=False)
@@ -61,7 +61,7 @@ class Arm_control(object):
         self.scene = scene
         self.move_group = move_group
 
-        self.ft_sensor = ft_sensor.FT_message()
+        self.ft_sensor = ft_sensor.FtMessage()
         self.thread_1_resut = False
 
 
@@ -206,6 +206,58 @@ class Arm_control(object):
 
         return plan.joint_trajectory.points!=[]
 
+    def reset_move(self, pose, ori = [0.0, 0.0, 0.0, 0.0]):
+        """
+        Move the pose to the target.
+
+        Parameters
+        ----------
+        pose : list or class 'geometry_msgs.msg._Pose.Pose'
+            A position value as seen from the robot. [x, y, z]
+        
+        ori : list or class 'geometry_msgs.msg._Quaternion.Quaternion'
+            A orientaion value as seen from the robot. [x, y, z, w]
+
+        Returns
+        -------
+        plan.joint_trajectory.header.frame_id!=[] : bool
+            Whether trajectory plan generation exists.
+        """
+        # end effector set
+        move_group = self.move_group
+        move_group.set_max_velocity_scaling_factor(0.075)
+        # move_group.set_end_effector_link("ur_gripper_tip_link")
+        self.thread_1_result = False
+
+        wpose = move_group.get_current_pose().pose
+        if type(pose) == geometry_msgs.msg._Pose.Pose:
+            wpose.position = pose.position
+        elif type(pose) == list:
+            wpose.position.x = pose[0]
+            wpose.position.y = pose[1]
+            wpose.position.z = pose[2]
+        else:
+            print("The type of variables is different: pose")
+
+        if type(ori) == geometry_msgs.msg._Quaternion.Quaternion:
+            wpose.orientation = ori
+        elif type(ori) == list:
+            wpose.orientation.x = ori[0]
+            wpose.orientation.y = ori[1]
+            wpose.orientation.z = ori[2]
+            wpose.orientation.w = ori[3]
+        else:
+            print("The type of variables is different: ori")
+
+        move_group.set_pose_target(wpose)
+
+        plan_success, plan, planningtime, error_code = move_group.plan()
+        move_group.execute(plan, True)
+        move_group.stop()
+        move_group.clear_pose_targets()
+
+        return plan.joint_trajectory.points!=[]
+
     def rot_motion(self, ori = [1.0, 0.0, 0.0, 0.0]):
         """
         Move the orientation to the target.
@@ -275,7 +327,7 @@ class Arm_control(object):
                 move_group.stop()
                 move_group.clear_pose_targets()
                 wpose = move_group.get_current_pose().pose
-                wpose.position.z += 0.05
+                wpose.position.z += 0.01
                 move_group.set_pose_target(wpose)
                 # Founding motion plan
                 plan_success, plan, planningtime, error_code = move_group.plan()

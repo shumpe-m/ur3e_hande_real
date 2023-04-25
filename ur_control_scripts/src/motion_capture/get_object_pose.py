@@ -4,10 +4,10 @@ import message_filters
 from geometry_msgs.msg import PoseStamped
 from motion_capture import transformations
 
-class Get_object_pose(object):
+class GetObjectPose(object):
     def __init__(self):
         self.ct = transformations.Transformations()
-        self.mocap_offset = [0.02879, 0.3333, -0.004, 0.0, 0.0, 0.0] #xzy  [0.02879, 0.3333, -0.005, 0.0, 0.0, 0.0]
+        self.mocap_offset = [0.02879, 0.3333, -0.0045, 0.0, 0.0, 0.0] #xzy  [0.02879, 0.3333, -0.005, 0.0, 0.0, 0.0]
 
     def wait_get_pose(self, pose_msg):
         """
@@ -46,7 +46,7 @@ class Get_object_pose(object):
         return pose
 
 
-class Get_chikuwa_pose(Get_object_pose):
+class GetChikuwaPose(GetObjectPose):
     def __init__(self):
         super().__init__()
         # ros message
@@ -63,7 +63,7 @@ class Get_chikuwa_pose(Get_object_pose):
         return pose
 
 
-class Get_shrimp_pose(Get_object_pose):
+class GetShrimpPose(GetObjectPose):
     def __init__(self):
         super().__init__()
         # ros message
@@ -80,7 +80,7 @@ class Get_shrimp_pose(Get_object_pose):
         return pose
 
 
-class Get_eggplant_pose(Get_object_pose):
+class GetEggplantPose(GetObjectPose):
     def __init__(self):
         super().__init__()
         # ros message
@@ -95,7 +95,7 @@ class Get_eggplant_pose(Get_object_pose):
         return pose
 
 
-class Get_green_papper_pose(Get_object_pose):
+class GetGreenPapperPose(GetObjectPose):
     def __init__(self):
         super().__init__()
         # ros message
@@ -107,4 +107,22 @@ class Get_green_papper_pose(Get_object_pose):
 
     def get_pose(self):
         pose = self.wait_get_pose(self.green_papper_pose)
+        # offset mocap
+        pose.position.z -= 0.003
+        return pose
+
+class GetJigPose(GetObjectPose):
+    def __init__(self):
+        super().__init__()
+        # ros message
+        self.sub_vector = rospy.Subscriber("/mocap_pose_topic/Jig_pose", PoseStamped, self.callbackVector)
+        self.jig_pose = PoseStamped()
+
+    def callbackVector(self, msg):
+        self.jig_pose = msg
+
+    def get_pose(self):
+        pose = self.wait_get_pose(self.jig_pose)
+        # offset mocap
+        pose.position.z += 0.015
         return pose

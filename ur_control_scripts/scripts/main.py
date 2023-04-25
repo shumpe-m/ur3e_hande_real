@@ -9,22 +9,23 @@ import rospy
 import numpy as np
 
 from ur_control_moveit import arm, ur_gripper_controller, random_pose, ft_sensor
-from motion_capture.get_object_pose import Get_chikuwa_pose, Get_shrimp_pose, Get_eggplant_pose, Get_green_papper_pose
+from motion_capture.get_object_pose import GetChikuwaPose, GetShrimpPose, GetEggplantPose, GetGreenPapperPose, GetJigPose
 
 
-class Ur_control(object):
+class UrControl(object):
     def __init__(self):
-        super(Ur_control, self).__init__()
+        super(UrControl, self).__init__()
 
         self.arm_control = arm.Arm_control("arm")
         self.gripper_control = ur_gripper_controller.GripperController()
-        self.rp = random_pose.Random_pose()
-        self.ft = ft_sensor.FT_message()
+        self.rp = random_pose.RandomPose()
+        self.ft = ft_sensor.FtMessage()
         # object pose class
-        self.gcp = Get_chikuwa_pose()
-        self.gsp = Get_shrimp_pose()
-        self.gep = Get_eggplant_pose()
-        self.ggp = Get_green_papper_pose()
+        self.gcp = GetChikuwaPose()
+        self.gsp = GetShrimpPose()
+        self.gep = GetEggplantPose()
+        self.ggp = GetGreenPapperPose()
+        # self.gjp = GetJigPose()
 
         self.forward_basic_joint = [0.9419943318766126, -1.4060059478330746, 1.4873566760577779, -1.6507993112633637, -1.5705307531751274, -0.629176246773139] # [1.57, -1.57, 1.26, -1.57, -1.57, 0]
         self.backward_basic_joint = [-2.234010390909684, -1.3927192120354697, 1.472050134256044, -1.65123476873738, -1.5690119071493065, -0.629176246773139] # [-1.57, -1.57, 1.26, -1.57, -1.57, 0]
@@ -56,6 +57,7 @@ class Ur_control(object):
         above_pose = copy.deepcopy(g_pose)
         above_pose.position.z = 0.20
         e = self.arm_control.quaternion_to_euler(quaternion = g_pose.orientation)
+        e = self.normalize_angles(e)
 
         # Change the default pose of the robot according to the sign of y. And add offset.
         if g_pose.position.y > 0:
@@ -64,18 +66,18 @@ class Ur_control(object):
             # mocap offset
             g_pose.position.z += 0.004
             # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
-            q = self.arm_control.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
+            # q = self.arm_control.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
         else:
             area = "backwrad"
             base_e = self.backward_basic_anguler
             # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
-            q = self.arm_control.euler_to_quaternion(euler = [e[0] + base_e[0], -e[1] + base_e[1], -e[2] + base_e[2]])
+            # q = self.arm_control.euler_to_quaternion(euler = [e[0] + base_e[0], -e[1] + base_e[1], -e[2] + base_e[2]])
         self.go_default_pose(area)
         self.gripper_control.rq_gripper_move_to(0)
 
         # print("target_degree: \n", [e[0]*180/3.1415, e[1]*180/3.1415, e[2]*180/3.1415])
-
-
+        # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
+        q = self.arm_control.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
         can_execute = self.arm_control.go_to_pose(pose = above_pose, ori = q)
         if can_execute:
             # Approaching target object
@@ -105,27 +107,30 @@ class Ur_control(object):
 
         return can_execute
 
-    def place(self, g_pose):
+    def place(self, g_pose, offset = 0):
         above_pose = copy.deepcopy(g_pose)
         above_pose.position.z = 0.20
         e = self.arm_control.quaternion_to_euler(quaternion = g_pose.orientation)
+        e = self.normalize_angles(e)
 
         # Change the default pose of the robot according to the sign of y. And add offset.
         if g_pose.position.y > 0:
             area = "forwrad"
             base_e = self.forward_basic_anguler
             # mocap offset
-            g_pose.position.z += 0.004
+            g_pose.position.z += 0.007 + offset
             # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
-            q = self.arm_control.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
+            # q = self.arm_control.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
         else:
             area = "backwrad"
             base_e = self.backward_basic_anguler
             # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
-            q = self.arm_control.euler_to_quaternion(euler = [e[0] + base_e[0], -e[1] + base_e[1], -e[2] + base_e[2]])
-
+            # q = self.arm_control.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
+            # mocap offset
+            g_pose.position.z += offset
         self.go_default_pose(area)
-
+        # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
+        q = self.arm_control.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
         can_execute = self.arm_control.go_to_pose(pose = above_pose, ori = q)
         if can_execute:
             # Approaching target object position.
@@ -150,35 +155,29 @@ class Ur_control(object):
 
         return can_execute
 
-    def pick_and_place(self):
-        self.set_goal_pose()
-
-        for obj_dx in range(self.num_obj):
-            self.arm_control.go_to_joint_state(self.mid_basic_joint)
-            current_pose = self.get_current_pose()
-
-            pick_success = self.pick(current_pose[obj_dx])
-            print("pick_success: ", pick_success)
-            if pick_success:
-                place_success = self.place(self.goal_pose[obj_dx])
-                print("place_success", place_success)
-
-            self.gripper_control.rq_gripper_move_to(0)
+    # def pick_and_place(self):
+    #     self.set_goal_pose()
+    #     for obj_dx in range(self.num_obj):
+    #         self.arm_control.go_to_joint_state(self.mid_basic_joint)
+    #         current_pose = self.get_current_pose()
+    #         pick_success = self.pick(current_pose[obj_dx])
+    #         print("pick_success: ", pick_success)
+    #         if pick_success:
+    #             place_success = self.place(self.goal_pose[obj_dx])
+    #             print("place_success", place_success)
+    #         self.gripper_control.rq_gripper_move_to(0)
     
     def mocap_pick_and_place(self):
         self.set_goal_pose()
-
         for obj in self.order_of_placement:
             self.ft.reset_ftsensor()
             self.arm_control.go_to_joint_state(self.mid_basic_joint)
             current_pose = self.get_current_pose(obj)
-
             pick_success = self.pick(current_pose, int(self.gripper_width[obj]))
             print("pick_success: ", pick_success)
             if pick_success:
                 place_success = self.place(self.goal_pose[obj])
                 print("place_success", place_success)
-
             self.gripper_control.rq_gripper_move_to(0)
             current_pose = self.get_current_pose(obj)
             print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>")
@@ -188,62 +187,43 @@ class Ur_control(object):
             print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~<")
         self.go_default_pose(area="")
 
-        rospy.sleep(0.5)
-        # print("goal_pose: ", self.goal_pose)
-        # current_pose = self.get_current_pose("all")
-        # print("current_pose: ", current_pose)
-        # chikuwa = self.cal_squared_error(self.goal_pose[self.obj_name[0]], current_pose[0])
-        # shrimp = self.cal_squared_error(self.goal_pose[self.obj_name[1]], current_pose[1])
-        # eggplant = self.cal_squared_error(self.goal_pose[self.obj_name[2]], current_pose[2])
-        # green_papper = self.cal_squared_error(self.goal_pose[self.obj_name[3]], current_pose[3])
-
-        # print("chikuwa: \n",chikuwa)
-        # print("shrimp: \n",shrimp)
-        # print("eggplant: \n",eggplant)
-        # print("green papper: \n",green_papper)
-
-    
     def self_reset(self, area="forwrad"):
         self.go_default_pose(area)
+
+        jig_pose = self.gjp.get_pose()
+        self.pick(jig_pose, 240)
+
         sweep_posi = []
         rospy.sleep(0.2)
         if area == "forwrad":
-            sweep_posi = [[0.2, 0.35, 0.23],
-                         [0.2, 0.35, 0.135],
-                         [-0.075, 0.35, 0.135],
-                         [0.2, 0.27, 0.23],
-                         [0.2, 0.27, 0.135],
-                         [-0.075, 0.27, 0.135]]
+            sweep_posi = [[0.2, 0.35, 0.20],
+                         [0.2, 0.35, 0.14],
+                         [-0.075, 0.35, 0.15],
+                         [0.2, 0.27, 0.20],
+                         [0.2, 0.27, 0.14],
+                         [-0.075, 0.27, 0.14]]
             base_e = self.forward_basic_anguler
         elif area == "backwrad":
-            sweep_posi = [[-0.21, -0.35, 0.23],
-                         [-0.21, -0.35, 0.135],
-                         [0.075, -0.35, 0.135],
-                         [-0.21, -0.27, 0.23],
-                         [-0.21, -0.27, 0.135],
-                         [0.075, -0.27, 0.135]]
+            sweep_posi = [[-0.21, -0.35, 0.20],
+                         [-0.21, -0.35, 0.14],
+                         [0.075, -0.35, 0.14],
+                         [-0.21, -0.27, 0.20],
+                         [-0.21, -0.27, 0.14],
+                         [0.075, -0.27, 0.14]]
             base_e = self.backward_basic_anguler
-        q = self.arm_control.euler_to_quaternion(euler = base_e)
+        q = self.arm_control.euler_to_quaternion(euler = [3.14, 0, 1.57])
         if sweep_posi != []:
-            self.arm_control.go_to_pose(pose = sweep_posi[0], ori = q)
-            self.arm_control.go_to_pose(pose = sweep_posi[1], ori = q)
-            self.arm_control.go_to_pose(pose = sweep_posi[2], ori = q)
+            self.arm_control.reset_move(pose = sweep_posi[0], ori = q)
+            self.arm_control.reset_move(pose = sweep_posi[1], ori = q)
+            self.arm_control.reset_move(pose = sweep_posi[2], ori = q)
             self.go_default_pose(area)
             rospy.sleep(0.2)
-            self.arm_control.go_to_pose(pose = sweep_posi[3], ori = q)
-            self.arm_control.go_to_pose(pose = sweep_posi[4], ori = q)
-            self.arm_control.go_to_pose(pose = sweep_posi[5], ori = q)
+            self.arm_control.reset_move(pose = sweep_posi[3], ori = q)
+            self.arm_control.reset_move(pose = sweep_posi[4], ori = q)
+            self.arm_control.reset_move(pose = sweep_posi[5], ori = q)
             self.go_default_pose(area)
-
         self.go_default_pose(area)
-
-    def joint_test(self):
-        joint = copy.deepcopy(self.arm_control.get_current_joint())
-        print(self.arm_control.get_current_joint())
-        joint[0] += math.pi / 10 # 1.4
-        rospy.sleep(0.2)
-        self.arm_control.go_to_joint_state(joint)
-        print(self.arm_control.get_current_joint())
+        self.place(jig_pose, -0.035)
 
     def get_current_pose(self, object_name):
         ["Chikuwa", "Shrimp", "Eggplant", "Green_papper"]
@@ -260,12 +240,10 @@ class Ur_control(object):
         else:
             print("Invalid object name.")
 
-
     def set_goal_pose(self):
         obj = copy.copy(self.obj_name)
         print("==============================================================\n")
         print("Now you will set the target postures of the objects ONE BY ONE.\n")
-
         while True:
             if len(obj) == 0:
                 break
@@ -285,7 +263,6 @@ class Ur_control(object):
                 break
             else:
                 print("##### Invalid object name. Choose from the list the name of the object. #####")
-
         print("#----------------------------------------------------------------------------#\n")
         print("Goal pose received.")
         input("Disassemble the object in the opposite area.\n When you are done, press 'Enter key'.")
@@ -336,14 +313,14 @@ class Ur_control(object):
         # print("chikuwa: \n",chikuwa)
         # print("shrimp: \n",shrimp)
 
-    def normalize_angles(self, obj_e, base_e):
-        new_e = copy.copy(obj_e)
-        sign = np.sign(obj_e[2])
-        # if abs(obj_e[0]) > abs(obj_e[1]):
-        #     new_e[0] = obj_e[1]
-        #     new_e[1] = obj_e[0]
+    def normalize_angles(self, obj_e):
+        max_ang = 0.52 # 30 degree
+        for i_dx in range(2):
+            if abs(obj_e[i_dx]) >= max_ang:
+                sign = np.sign(obj_e[i_dx])
+                obj_e[i_dx] = max_ang * sign
         
-        return [-new_e[0] + base_e[0], new_e[1] + base_e[1], -new_e[2] + base_e[2]]
+        return obj_e
 
     def cal_squared_error(self, g_pose, current_pose):
         se_px = abs(g_pose.position.x)  - abs(current_pose.position.x)  
@@ -365,6 +342,7 @@ def main():
 
         action.mocap_pick_and_place()
         # action.test()
+        # action.self_reset()
 
         action.go_default_pose(area="")
 

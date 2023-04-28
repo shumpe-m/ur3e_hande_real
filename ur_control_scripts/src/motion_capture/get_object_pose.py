@@ -108,14 +108,14 @@ class GetGreenPapperPose(GetObjectPose):
     def get_pose(self):
         pose = self.wait_get_pose(self.green_papper_pose)
         # offset mocap
-        pose.position.z -= 0.003
+        pose.position.z += 0.002
         return pose
 
 class GetJigPose(GetObjectPose):
     def __init__(self):
         super().__init__()
         # ros message
-        self.sub_vector = rospy.Subscriber("/mocap_pose_topic/Jig_pose", PoseStamped, self.callbackVector)
+        self.sub_vector = rospy.Subscriber("/mocap_pose_topic/Dish_pose", PoseStamped, self.callbackVector)
         self.jig_pose = PoseStamped()
 
     def callbackVector(self, msg):
@@ -124,5 +124,6 @@ class GetJigPose(GetObjectPose):
     def get_pose(self):
         pose = self.wait_get_pose(self.jig_pose)
         # offset mocap
-        pose.position.z += 0.015
+        pose.position.z += 0.00
+        # pose.position.y += 0.005
         return pose

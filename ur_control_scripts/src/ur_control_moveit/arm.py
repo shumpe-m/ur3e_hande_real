@@ -65,7 +65,7 @@ class ArmControl(object):
         self.thread_1_resut = False
 
 
-    def go_to_joint_state(self, joint_ang):
+    def go_to_joint_state(self, joint_ang, vel_scal = 0.20):
         """
         Move the joint angle to the target.
 
@@ -75,7 +75,7 @@ class ArmControl(object):
             Radian values for each joint.
         """
         move_group = self.move_group
-        move_group.set_max_velocity_scaling_factor(0.20)
+        move_group.set_max_velocity_scaling_factor(vel_scal)
         self.thread_1_result = False
         
         move_group.set_joint_value_target(joint_ang)
@@ -96,7 +96,7 @@ class ArmControl(object):
         move_group.clear_pose_targets()
 
 
-    def go_to_position(self, position=[0,0,0]):
+    def go_to_position(self, position=[0,0,0], vel_scal = 0.1):
         """
         Move the position to the target.
         The value of orientation is the value before movement.
@@ -113,7 +113,7 @@ class ArmControl(object):
         """
         # end effector set
         move_group = self.move_group
-        move_group.set_max_velocity_scaling_factor(0.1)
+        move_group.set_max_velocity_scaling_factor(vel_scal)
         # move_group.set_end_effector_link("ur_gripper_tip_link")
         self.thread_1_result = False
 
@@ -147,7 +147,7 @@ class ArmControl(object):
         return plan.joint_trajectory.header.frame_id!=[]
 
 
-    def go_to_pose(self, pose, ori = [0.0, 0.0, 0.0, 0.0]):
+    def go_to_pose(self, pose, ori = [0.0, 0.0, 0.0, 0.0], vel_scal = 0.075):
         """
         Move the pose to the target.
 
@@ -166,7 +166,7 @@ class ArmControl(object):
         """
         # end effector set
         move_group = self.move_group
-        move_group.set_max_velocity_scaling_factor(0.075)
+        move_group.set_max_velocity_scaling_factor(vel_scal)
         # move_group.set_end_effector_link("ur_gripper_tip_link")
         self.thread_1_result = False
 
@@ -206,7 +206,7 @@ class ArmControl(object):
 
         return plan.joint_trajectory.points!=[]
 
-    def reset_move(self, pose, ori = [0.0, 0.0, 0.0, 0.0]):
+    def reset_move(self, pose, ori = [0.0, 0.0, 0.0, 0.0], vel_scal = 0.075):
         """
         Move the pose to the target.
 
@@ -225,7 +225,7 @@ class ArmControl(object):
         """
         # end effector set
         move_group = self.move_group
-        move_group.set_max_velocity_scaling_factor(0.075)
+        move_group.set_max_velocity_scaling_factor(vel_scal)
         # move_group.set_end_effector_link("ur_gripper_tip_link")
         self.thread_1_result = False
 
@@ -258,7 +258,7 @@ class ArmControl(object):
 
         return plan.joint_trajectory.points!=[]
 
-    def rot_motion(self, ori = [1.0, 0.0, 0.0, 0.0]):
+    def rot_motion(self, ori = [1.0, 0.0, 0.0, 0.0], vel_scal = 0.1):
         """
         Move the orientation to the target.
         The value of position is the value before movement.
@@ -274,7 +274,7 @@ class ArmControl(object):
             Whether trajectory plan generation exists.
         """
         move_group = self.move_group
-        move_group.set_max_velocity_scaling_factor(0.1)
+        move_group.set_max_velocity_scaling_factor(vel_scal)
         # move_group.set_end_effector_link("ur_gripper_tip_link")
         self.thread_1_result = False
 
@@ -425,7 +425,6 @@ class ArmControl(object):
 
         wpose = move_group.get_current_pose().pose
 
-
         wpose.position.x = pose[0]
         wpose.position.y = pose[1]
         wpose.position.z = pose[2]
@@ -435,12 +434,3 @@ class ArmControl(object):
         wpose.orientation.w = q[3]
 
         return wpose
-
-    # def to_list(self, pose):
-    #     x, y, z, _, _, _, _ = pose_to_list(pose)
-    #     data = np.array([[x,y,z]])
-    #     return data
-
-    # def save_array(self, data_name, data, height, r_scale):
-    #     file_name = data_name + "_height_" + str(height) + "_rscale_" + str(r_scale) 
-    #     np.save(file_name, data, fix_imports=True)

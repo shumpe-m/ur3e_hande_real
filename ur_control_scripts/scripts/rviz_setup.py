@@ -170,7 +170,7 @@ def main():
         setup.add_box(name = "wall1", pose = [0, -(-0.03 + wall_length[1])/2, wall_height / 2], size = [wall_length[0], 0.03, wall_height])
         setup.add_box(name = "wall2", pose = [-(-0.03 + wall_length[0])/2, 0, wall_height / 2], size = [0.03, wall_length[1], wall_height])
         setup.add_box(name = "wall3", pose = [0, (-0.03 + wall_length[1])/2, wall_height / 2], size = [wall_length[0], 0.03, wall_height])
-        setup.add_box(name = "wall4", pose = [(-0.03 + wall_length[0])/2, 0, wall_height / 2], size = [0.03, wall_length[1], wall_height])
+        setup.add_box(name = "wall4", pose = [(-0.03 + wall_length[0])/2 + 0.06, 0, wall_height / 2], size = [0.03, wall_length[1], wall_height])
         setup.add_box(name = "ceiling", pose = [0, 0, wall_height], size = [table_length[0], table_length[1], 0.03])
 
         setup.add_box(name = "mocap1", pose = [0, -(-0.16 + wall_length[1])/2, wall_height / 2], size = [0.16, 0.1, 0.2])

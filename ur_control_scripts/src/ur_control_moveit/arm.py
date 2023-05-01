@@ -47,15 +47,10 @@ class ArmControl(object):
             moveit_msgs.msg.DisplayTrajectory,
             queue_size=20,
         )
-
         # Set the end-effector link for this group:
         move_group.set_end_effector_link("ur_gripper_tip_link") # or tool0
-
-        # planning_time = 10 # [s]
-        # move_group.set_planning_time(planning_time)
         move_group.set_goal_tolerance(0.005)
         move_group.set_max_velocity_scaling_factor(0.05)
-        ## END_SUB_TUTORIAL
 
         self.robot = robot
         self.scene = scene
@@ -415,22 +410,3 @@ class ArmControl(object):
         move_group = self.move_group
         joint = move_group.get_current_joint_values()
         return joint
-
-
-    def chage_type(self, pose):
-        # end effector set
-        move_group = self.move_group
-        # move_group.set_end_effector_link("ur_gripper_tip_link")
-        q = self.euler_to_quaternion(pose[3:])
-
-        wpose = move_group.get_current_pose().pose
-
-        wpose.position.x = pose[0]
-        wpose.position.y = pose[1]
-        wpose.position.z = pose[2]
-        wpose.orientation.x = q[0]
-        wpose.orientation.y = q[1]
-        wpose.orientation.z = q[2]
-        wpose.orientation.w = q[3]
-
-        return wpose

@@ -59,7 +59,7 @@ class GetChikuwaPose(GetObjectPose):
     def get_pose(self):
         pose = self.wait_get_pose(self.chikuwa_pose)
         # offset mocap
-        pose.position.z -= 0.003
+        pose.position.z += 0.00
         return pose
 
 
@@ -108,7 +108,7 @@ class GetGreenPapperPose(GetObjectPose):
     def get_pose(self):
         pose = self.wait_get_pose(self.green_papper_pose)
         # offset mocap
-        pose.position.z += 0.002
+        pose.position.z -= 0.002
         return pose
 
 class GetJigPose(GetObjectPose):
@@ -124,6 +124,6 @@ class GetJigPose(GetObjectPose):
     def get_pose(self):
         pose = self.wait_get_pose(self.jig_pose)
         # offset mocap
-        pose.position.z += 0.00
+        pose.position.z += 0.01
         # pose.position.y += 0.005
         return pose

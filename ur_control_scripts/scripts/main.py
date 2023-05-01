@@ -41,7 +41,7 @@ class UrControl(object):
         self.num_obj = 0
         self.goal_pose = {"Chikuwa":0, "Shrimp":0, "Eggplant":0, "Green_papper":0}
         self.order_of_placement = []
-        self.gripper_width = {"Chikuwa":255*0.6, "Shrimp":255*0.6, "Eggplant":255*0.7, "Green_papper":255*0.85}
+        self.gripper_width = {"Chikuwa":255*0.6, "Shrimp":255*0.6, "Eggplant":255*0.7, "Green_papper":255*0.9}
 
     def go_default_pose(self, area = ""):
         if area == "forwrad":
@@ -70,6 +70,8 @@ class UrControl(object):
         else:
             area = "backwrad"
             base_e = self.backward_basic_anguler
+            # mocap offset
+            g_pose.position.z += 0.005
             # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
             # q = self.arm_control.euler_to_quaternion(euler = [e[0] + base_e[0], -e[1] + base_e[1], -e[2] + base_e[2]])
         self.go_default_pose(area)
@@ -103,8 +105,9 @@ class UrControl(object):
 
         return can_execute
 
-    def place(self, g_pose, offset = 0):
-        above_pose = copy.deepcopy(g_pose)
+    def place(self, goal_pose, offset = 0):
+        g_pose = copy.deepcopy(goal_pose)
+        above_pose = copy.deepcopy(goal_pose)
         above_pose.position.z = 0.20
         e = self.arm_control.quaternion_to_euler(quaternion = g_pose.orientation)
         e = self.normalize_angles(e)
@@ -137,7 +140,7 @@ class UrControl(object):
             rospy.sleep(0.2)
             # Open the gripper.
             g_state = self.gripper_control.rq_gripper_position()
-            self.gripper_control.rq_gripper_move_to(g_state - 25)
+            self.gripper_control.rq_gripper_move_to(g_state - 40)
             rospy.sleep(0.5)
             # Lift the arm.
             can_execute = self.arm_control.go_to_pose(pose = above_pose, ori = q) if can_execute else False
@@ -177,20 +180,20 @@ class UrControl(object):
         area = "forwrad" if dish_pose.position.y > 0 else "backwrad"
         self.go_default_pose(area)
         if area == "forwrad":
-            reset_pose = [0.1, 0.35, 0.15]
-            replace_pose = [-0.1, -0.35, 0.02]
+            reset_pose = [0.1, 0.35, 0.3]
+            # replace_pose = [-0.1, -0.35, 0.02]
             q = self.arm_control.euler_to_quaternion(euler = [3.14, 0, 1.57])
             e = [0, 0, 0]
         else:
-            reset_pose = [-0.1, -0.35, 0.15]
-            replace_pose = [0.1, 0.35, 0.02]
+            reset_pose = [-0.1, -0.35, 0.3]
+            # replace_pose = [0.1, 0.35, 0.02]
             q = self.arm_control.euler_to_quaternion(euler = [3.14, 0, -1.57])
             e = [0, 0, 3.14]
-        self.arm_control.reset_move(pose = reset_pose, ori = q, vel_scal = 0.20)
+        self.arm_control.go_to_pose(pose = reset_pose, ori = q, vel_scal = 0.20)
 
         joint = self.arm_control.get_current_joint()
         joint[3] -= 0.8
-        self.arm_control.go_to_joint_state(joint, vel_scal=0.15)
+        self.arm_control.go_to_joint_state(joint, vel_scal=0.2)
 
         self.go_default_pose("")
         q = self.arm_control.euler_to_quaternion(euler = e)
@@ -251,38 +254,27 @@ class UrControl(object):
         
 
     def test(self):
-        dish_pose = self.gjp.get_pose()
-        self.pick(dish_pose, 240)
-        
-        area = "forwrad" if dish_pose.position.y > 0 else "backwrad"
-        self.go_default_pose(area)
-        if area == "forwrad":
-            reset_pose = [0.1, 0.35, 0.15]
-            replace_pose = [-0.1, -0.35, 0.02]
-            q = self.arm_control.euler_to_quaternion(euler = [3.14, 0, 1.57])
-            e = [0, 0, 0]
-        else:
-            reset_pose = [-0.1, -0.35, 0.15]
-            replace_pose = [0.1, 0.35, 0.02]
-            q = self.arm_control.euler_to_quaternion(euler = [3.14, 0, -1.57])
-            e = [0, 0, 3.14]
-        self.arm_control.reset_move(pose = reset_pose, ori = q, vel_scal = 0.20)
-
-        joint = self.arm_control.get_current_joint()
-        joint[3] -= 0.8
-        self.arm_control.go_to_joint_state(joint, vel_scal=0.15)
-
-        self.go_default_pose("")
-        q = self.arm_control.euler_to_quaternion(euler = e)
-        dish_pose.position.x = replace_pose[0]
-        dish_pose.position.y = replace_pose[1]
-        dish_pose.position.z = replace_pose[2]
-        dish_pose.orientation.x = q[0]
-        dish_pose.orientation.y = q[1]
-        dish_pose.orientation.z = q[2]
-        dish_pose.orientation.w = q[3]
-        self.place(dish_pose, 0.015)
-        self.gripper_control.rq_gripper_move_to(0)
+        self.set_goal_pose()
+        for idx in range(10):
+            for obj in self.order_of_placement:
+                self.ft.reset_ftsensor()
+                self.arm_control.go_to_joint_state(self.mid_basic_joint)
+                current_pose = self.get_current_pose(obj)
+                pick_success = self.pick(current_pose, int(self.gripper_width[obj]))
+                print("pick_success: ", pick_success)
+                if pick_success:
+                    place_success = self.place(self.goal_pose[obj])
+                    print("place_success", place_success)
+                self.gripper_control.rq_gripper_move_to(0)
+                current_pose = self.get_current_pose(obj)
+                print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>")
+                print(obj)
+                print("target pose : \n", self.goal_pose[obj])
+                print("current pose : \n", current_pose)
+                print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~<")
+            # self.self_reset()
+            input("Disassemble the object in the opposite area.\n When you are done, press 'Enter key'.")
+        self.go_default_pose(area="")
 
 
     def normalize_angles(self, obj_e):
@@ -313,8 +305,8 @@ def main():
         action.go_default_pose(area="")
 
         # action.mocap_pick_and_place()
-        action.test()
         # action.self_reset()
+        action.test()
 
         action.go_default_pose(area="")
 

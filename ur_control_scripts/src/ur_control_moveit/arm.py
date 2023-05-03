@@ -49,8 +49,7 @@ class ArmControl(object):
         )
         # Set the end-effector link for this group:
         move_group.set_end_effector_link("ur_gripper_tip_link") # or tool0
-        move_group.set_goal_tolerance(0.005)
-        move_group.set_max_velocity_scaling_factor(0.05)
+        move_group.set_goal_tolerance(0.001)
 
         self.robot = robot
         self.scene = scene
@@ -60,7 +59,7 @@ class ArmControl(object):
         self.thread_1_resut = False
 
 
-    def go_to_joint_state(self, joint_ang, vel_scal = 0.20):
+    def go_to_joint_state(self, joint_ang, vel_scal = 0.35):
         """
         Move the joint angle to the target.
 
@@ -91,7 +90,7 @@ class ArmControl(object):
         move_group.clear_pose_targets()
 
 
-    def go_to_position(self, position=[0,0,0], vel_scal = 0.1):
+    def go_to_position(self, position=[0,0,0], vel_scal = 0.15):
         """
         Move the position to the target.
         The value of orientation is the value before movement.
@@ -134,6 +133,7 @@ class ArmControl(object):
         thread_1.start()
         thread_2.start()
         thread_1.join()
+        rospy.sleep(0.2)
         self.thread_1_result = True
         thread_2.join()
         move_group.stop()
@@ -142,7 +142,7 @@ class ArmControl(object):
         return plan.joint_trajectory.header.frame_id!=[]
 
 
-    def go_to_pose(self, pose, ori = [0.0, 0.0, 0.0, 0.0], vel_scal = 0.075):
+    def go_to_pose(self, pose, ori = [0.0, 0.0, 0.0, 0.0], vel_scal = 0.15):
         """
         Move the pose to the target.
 
@@ -194,6 +194,7 @@ class ArmControl(object):
         thread_1.start()
         thread_2.start()
         thread_1.join()
+        rospy.sleep(0.2)
         self.thread_1_result = True
         thread_2.join()
         move_group.stop()
@@ -201,7 +202,7 @@ class ArmControl(object):
 
         return plan.joint_trajectory.points!=[]
 
-    def reset_move(self, pose, ori = [0.0, 0.0, 0.0, 0.0], vel_scal = 0.075):
+    def reset_move(self, pose, ori = [0.0, 0.0, 0.0, 0.0], vel_scal = 0.15):
         """
         Move the pose to the target.
 
@@ -298,6 +299,7 @@ class ArmControl(object):
         thread_1.start()
         thread_2.start()
         thread_1.join()
+        rospy.sleep(0.2)
         self.thread_1_result = True
         thread_2.join()
         move_group.stop()
@@ -331,53 +333,6 @@ class ArmControl(object):
                 move_group.clear_pose_targets()
                 break
             # rospy.sleep(0.1)
-
-
-    def euler_to_quaternion(self, euler = [3.140876586229683, 0.0008580159308600959, -0.0009655065200909574]):
-        """
-        Convert Euler Angles to Quaternion.
-
-        Parameters
-        ----------
-        euler : list or class 'geometry_msgs.msg._Pose.Pose'
-            The Euler angles you want to convert.
-
-        Returns
-        -------
-        q : numpy.ndarray
-            Quaternion values.
-        """
-        if type(euler) == geometry_msgs.msg._Pose.Pose:
-            print("The type of variables is different.")
-        elif type(euler) == list:
-            q = tf.transformations.quaternion_from_euler(euler[0], euler[1], euler[2])
-        else:
-            print("The type of variables is different.")
-
-        return list(q)
-
-    def quaternion_to_euler(self, quaternion):
-        """
-        Convert Quaternion to Euler Angles.
-
-        Parameters
-        ----------
-        quaternion : list or class 'geometry_msgs.msg._Quaternion.Quaternion'
-            The Quaternion you want to convert.
-
-        Returns
-        -------
-        e : numpy.ndarray
-            Euler Angles.
-        """
-        if type(quaternion) == geometry_msgs.msg._Quaternion.Quaternion:
-            e = tf.transformations.euler_from_quaternion((quaternion.x, quaternion.y, quaternion.z, quaternion.w))
-        elif type(quaternion) == list:
-            e = tf.transformations.euler_from_quaternion((quaternion[0], quaternion[1], quaternion[2], quaternion[3]))
-        else:
-            print("The type of variables is different.")
-
-        return list(e)
 
     def get_current_pose(self, end_effector_link_name = "ur_gripper_tip_link"):
         """

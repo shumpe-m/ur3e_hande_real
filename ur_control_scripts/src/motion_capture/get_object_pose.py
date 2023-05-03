@@ -6,8 +6,8 @@ from motion_capture import transformations
 
 class GetObjectPose(object):
     def __init__(self):
-        self.ct = transformations.Transformations()
-        self.mocap_offset = [0.02879, 0.3333, -0.0045, 0.0, 0.0, 0.0] #xzy  [0.02879, 0.3333, -0.005, 0.0, 0.0, 0.0]
+        self.trf = transformations.Transformations()
+        self.mocap_offset = [0.02879, 0.3333, 0, 0.0, 0.0, 0.0] #xzy  [0.02879, 0.3333, -0.005, 0.0, 0.0, 0.0]
 
     def wait_get_pose(self, pose_msg):
         """
@@ -41,7 +41,7 @@ class GetObjectPose(object):
         # pose.position.z = pose_msg.pose.position.y
         pose.position = pose_msg.pose.position
         pose.orientation = pose_msg.pose.orientation
-        pose = self.ct.transform_leftHanded_to_rightHanded(pose, self.mocap_offset)
+        pose = self.trf.transform_leftHanded_to_rightHanded(pose, self.mocap_offset)
 
         return pose
 
@@ -59,7 +59,7 @@ class GetChikuwaPose(GetObjectPose):
     def get_pose(self):
         pose = self.wait_get_pose(self.chikuwa_pose)
         # offset mocap
-        pose.position.z += 0.00
+        # pose.position.z += 0.00
         return pose
 
 
@@ -76,7 +76,7 @@ class GetShrimpPose(GetObjectPose):
     def get_pose(self):
         pose = self.wait_get_pose(self.shrimp_pose)
         # offset mocap
-        pose.position.z -= 0.004
+        # pose.position.z -= 0.004
         return pose
 
 
@@ -108,7 +108,7 @@ class GetGreenPapperPose(GetObjectPose):
     def get_pose(self):
         pose = self.wait_get_pose(self.green_papper_pose)
         # offset mocap
-        pose.position.z -= 0.002
+        # pose.position.z -= 0.002
         return pose
 
 class GetJigPose(GetObjectPose):
@@ -124,6 +124,6 @@ class GetJigPose(GetObjectPose):
     def get_pose(self):
         pose = self.wait_get_pose(self.jig_pose)
         # offset mocap
-        pose.position.z += 0.01
+        # pose.position.z += 0.01
         # pose.position.y += 0.005
         return pose

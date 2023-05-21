@@ -2,8 +2,6 @@
 Copyright (c) 2008-2013, Willow Garage, Inc.
 Copyright (c) 2015-2019, PickNik, LLC.
 https://github.com/ros-planning/moveit_tutorials/blob/master/LICENSE.txt
-
-Modifications copyright (C) 2022 Shumpe MORITA.
 """
 from __future__ import print_function
 from six.moves import input
@@ -24,7 +22,7 @@ from ur_control_moveit import ft_sensor
 import numpy as np
 try:
     from math import pi, tau, dist, fabs, cos
-except:  # For Python 2 compatibility
+except:
     from math import pi, fabs, cos, sqrt
     tau = 2.0 * pi
     def dist(p, q):
@@ -47,19 +45,22 @@ class ArmControl(object):
             moveit_msgs.msg.DisplayTrajectory,
             queue_size=20,
         )
-        # Set the end-effector link for this group:
+
+        # Set the end-effector link for this group
         move_group.set_end_effector_link("ur_gripper_tip_link") # or tool0
         move_group.set_goal_tolerance(0.001)
 
+        # initialize
         self.robot = robot
         self.scene = scene
         self.move_group = move_group
 
+        # ft sensor
         self.ft_sensor = ft_sensor.FtMessage()
-        self.thread_1_resut = False
+        self.execute_thread_resut = False
 
 
-    def go_to_joint_state(self, joint_ang, vel_scal = 0.35):
+    def go_to_joint_state(self, joint_ang, vel_scale = 0.6):
         """
         Move the joint angle to the target.
 
@@ -67,22 +68,16 @@ class ArmControl(object):
         ----------
         joint_ang : list
             Radian values for each joint.
+
+        vel_scale : float
+            velocity scaling factor.
         """
         move_group = self.move_group
-        move_group.set_max_velocity_scaling_factor(vel_scal)
-        self.thread_1_result = False
+        move_group.set_max_velocity_scaling_factor(vel_scale)
+        self.execute_thread_result = False
         
         move_group.set_joint_value_target(joint_ang)
         plan_success, plan, planningtime, error_code = move_group.plan()
-
-        # self.ft_sensor.reset_ftsensor()
-        # thread_1 = threading.Thread(target=move_group.execute, args=(plan, True))
-        # thread_2 = threading.Thread(target=self.stop_action, args=(self.ft_sensor.collision_avoidance,))
-        # thread_1.start()
-        # thread_2.start()
-        # thread_1.join()
-        # self.thread_1_result = True
-        # thread_2.join()
 
         move_group.execute(plan, True)
 
@@ -90,7 +85,7 @@ class ArmControl(object):
         move_group.clear_pose_targets()
 
 
-    def go_to_position(self, position=[0,0,0], vel_scal = 0.15):
+    def go_to_position(self, position=[0,0,0], vel_scale = 0.2):
         """
         Move the position to the target.
         The value of orientation is the value before movement.
@@ -99,6 +94,9 @@ class ArmControl(object):
         ----------
         position : list or class 'geometry_msgs.msg._Pose.Pose'
             A position value as seen from the robot. [x, y, z]
+        
+        vel_scale : float
+            velocity scaling factor.
 
         Returns
         -------
@@ -107,12 +105,11 @@ class ArmControl(object):
         """
         # end effector set
         move_group = self.move_group
-        move_group.set_max_velocity_scaling_factor(vel_scal)
-        # move_group.set_end_effector_link("ur_gripper_tip_link")
-        self.thread_1_result = False
-
+        move_group.set_max_velocity_scaling_factor(vel_scale)
+        self.execute_thread_result = False
         wpose = move_group.get_current_pose().pose
         current_pose = copy.deepcopy(wpose)
+
         # Position set
         if type(position) == geometry_msgs.msg._Pose.Pose:
             pose = position
@@ -128,21 +125,21 @@ class ArmControl(object):
             print("No motion plan found. position = ", position)
         # Execute plan
         self.ft_sensor.reset_ftsensor()
-        thread_1 = threading.Thread(target=move_group.execute, args=(plan, True))
-        thread_2 = threading.Thread(target=self.stop_action, args=(self.ft_sensor.collision_avoidance,))
-        thread_1.start()
-        thread_2.start()
-        thread_1.join()
-        rospy.sleep(0.2)
-        self.thread_1_result = True
-        thread_2.join()
+        execute_thread = threading.Thread(target=move_group.execute, args=(plan, True))
+        collision_avoidance_thread = threading.Thread(target=self.stop_action, args=(self.ft_sensor.collision_avoidance,))
+        execute_thread.start()
+        collision_avoidance_thread.start()
+        execute_thread.join()
+        rospy.sleep(0.3)
+        self.execute_thread_result = True
+        collision_avoidance_thread.join()
         move_group.stop()
         move_group.clear_pose_targets()
 
         return plan.joint_trajectory.header.frame_id!=[]
 
 
-    def go_to_pose(self, pose, ori = [0.0, 0.0, 0.0, 0.0], vel_scal = 0.15):
+    def go_to_pose(self, pose, ori = [0.0, 0.0, 0.0, 0.0], vel_scale = 0.2):
         """
         Move the pose to the target.
 
@@ -154,6 +151,9 @@ class ArmControl(object):
         ori : list or class 'geometry_msgs.msg._Quaternion.Quaternion'
             A orientaion value as seen from the robot. [x, y, z, w]
 
+        vel_scale : float
+            velocity scaling factor.
+
         Returns
         -------
         plan.joint_trajectory.header.frame_id!=[] : bool
@@ -161,11 +161,10 @@ class ArmControl(object):
         """
         # end effector set
         move_group = self.move_group
-        move_group.set_max_velocity_scaling_factor(vel_scal)
-        # move_group.set_end_effector_link("ur_gripper_tip_link")
-        self.thread_1_result = False
-
+        move_group.set_max_velocity_scaling_factor(vel_scale)
+        self.execute_thread_result = False
         wpose = move_group.get_current_pose().pose
+
         if type(pose) == geometry_msgs.msg._Pose.Pose:
             wpose.position = pose.position
         elif type(pose) == list:
@@ -189,20 +188,20 @@ class ArmControl(object):
 
         plan_success, plan, planningtime, error_code = move_group.plan()
         self.ft_sensor.reset_ftsensor()
-        thread_1 = threading.Thread(target=move_group.execute, args=(plan, True))
-        thread_2 = threading.Thread(target=self.stop_action, args=(self.ft_sensor.collision_avoidance,))
-        thread_1.start()
-        thread_2.start()
-        thread_1.join()
-        rospy.sleep(0.2)
-        self.thread_1_result = True
-        thread_2.join()
+        execute_thread = threading.Thread(target=move_group.execute, args=(plan, True))
+        collision_avoidance_thread = threading.Thread(target=self.stop_action, args=(self.ft_sensor.collision_avoidance,))
+        execute_thread.start()
+        collision_avoidance_thread.start()
+        execute_thread.join()
+        rospy.sleep(0.3)
+        self.execute_thread_result = True
+        collision_avoidance_thread.join()
         move_group.stop()
         move_group.clear_pose_targets()
 
         return plan.joint_trajectory.points!=[]
 
-    def reset_move(self, pose, ori = [0.0, 0.0, 0.0, 0.0], vel_scal = 0.15):
+    def reset_move(self, pose, ori = [0.0, 0.0, 0.0, 0.0], vel_scale = 0.2):
         """
         Move the pose to the target.
 
@@ -214,6 +213,9 @@ class ArmControl(object):
         ori : list or class 'geometry_msgs.msg._Quaternion.Quaternion'
             A orientaion value as seen from the robot. [x, y, z, w]
 
+        vel_scale : float
+            velocity scaling factor.
+
         Returns
         -------
         plan.joint_trajectory.header.frame_id!=[] : bool
@@ -221,11 +223,10 @@ class ArmControl(object):
         """
         # end effector set
         move_group = self.move_group
-        move_group.set_max_velocity_scaling_factor(vel_scal)
-        # move_group.set_end_effector_link("ur_gripper_tip_link")
-        self.thread_1_result = False
-
+        move_group.set_max_velocity_scaling_factor(vel_scale)
+        self.execute_thread_result = False
         wpose = move_group.get_current_pose().pose
+
         if type(pose) == geometry_msgs.msg._Pose.Pose:
             wpose.position = pose.position
         elif type(pose) == list:
@@ -246,7 +247,6 @@ class ArmControl(object):
             print("The type of variables is different: ori")
 
         move_group.set_pose_target(wpose)
-
         plan_success, plan, planningtime, error_code = move_group.plan()
         move_group.execute(plan, True)
         move_group.stop()
@@ -254,7 +254,7 @@ class ArmControl(object):
 
         return plan.joint_trajectory.points!=[]
 
-    def rot_motion(self, ori = [1.0, 0.0, 0.0, 0.0], vel_scal = 0.1):
+    def rot_motion(self, ori = [1.0, 0.0, 0.0, 0.0], vel_scale = 0.2):
         """
         Move the orientation to the target.
         The value of position is the value before movement.
@@ -264,16 +264,17 @@ class ArmControl(object):
         ori : list or class 'geometry_msgs.msg._Quaternion.Quaternion'
             A orientaion value as seen from the robot. [x, y, z, w]
 
+        vel_scale : float
+            velocity scaling factor.
+
         Returns
         -------
         plan.joint_trajectory.header.frame_id!=[] : bool
             Whether trajectory plan generation exists.
         """
         move_group = self.move_group
-        move_group.set_max_velocity_scaling_factor(vel_scal)
-        # move_group.set_end_effector_link("ur_gripper_tip_link")
-        self.thread_1_result = False
-
+        move_group.set_max_velocity_scaling_factor(vel_scale)
+        self.execute_thread_result = False
         wpose = move_group.get_current_pose().pose
         wpose.position = pose.position
         current_pose = copy.deepcopy(wpose)
@@ -289,19 +290,16 @@ class ArmControl(object):
             print("The type of variables is different.")
 
         move_group.set_pose_target(wpose)
-
-        # print("plan")
         plan_success, plan, planningtime, error_code = move_group.plan()
-        # print("exwcute")
         self.ft_sensor.reset_ftsensor()
-        thread_1 = threading.Thread(target=move_group.execute, args=(plan, True))
-        thread_2 = threading.Thread(target=self.stop_action, args=(self.ft_sensor.collision_avoidance,))
-        thread_1.start()
-        thread_2.start()
-        thread_1.join()
-        rospy.sleep(0.2)
-        self.thread_1_result = True
-        thread_2.join()
+        execute_thread = threading.Thread(target=move_group.execute, args=(plan, True))
+        collision_avoidance_thread = threading.Thread(target=self.stop_action, args=(self.ft_sensor.collision_avoidance,))
+        execute_thread.start()
+        collision_avoidance_thread.start()
+        execute_thread.join()
+        rospy.sleep(0.3)
+        self.execute_thread_result = True
+        collision_avoidance_thread.join()
         move_group.stop()
         move_group.clear_pose_targets()
 
@@ -319,20 +317,20 @@ class ArmControl(object):
 
         """
         move_group = self.move_group
-        while (not self.thread_1_result):
+        while (not self.execute_thread_result):
             if collision_func():
                 move_group.stop()
                 move_group.clear_pose_targets()
                 wpose = move_group.get_current_pose().pose
                 wpose.position.z += 0.01
                 move_group.set_pose_target(wpose)
+
                 # Founding motion plan
                 plan_success, plan, planningtime, error_code = move_group.plan()
                 move_group.execute(plan, True)
                 move_group.stop()
                 move_group.clear_pose_targets()
                 break
-            # rospy.sleep(0.1)
 
     def get_current_pose(self, end_effector_link_name = "ur_gripper_tip_link"):
         """

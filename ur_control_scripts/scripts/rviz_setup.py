@@ -4,8 +4,6 @@
 Copyright (c) 2008-2013, Willow Garage, Inc.
 Copyright (c) 2015-2019, PickNik, LLC.
 https://github.com/ros-planning/moveit_tutorials/blob/master/LICENSE.txt
-
-Modifications copyright (C) 2022 Shumpe MORITA.
 """
 from __future__ import print_function
 from six.moves import input

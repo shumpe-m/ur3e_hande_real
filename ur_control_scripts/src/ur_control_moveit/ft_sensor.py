@@ -44,10 +44,10 @@ class FtMessage(object):
             Orientation of objects in the robot's coordinate system.
         """
         ft_msg = self.get_ft_message()
-        deetect_contact = True if abs(ft_msg.wrench.force.x) >= 6 or abs(ft_msg.wrench.force.y) >= 6 or ft_msg.wrench.force.z <= -6 else False
-        # print(ft_msg.wrench)
+        deetect_contact = True if abs(ft_msg.wrench.force.x) >= 3.7 or abs(ft_msg.wrench.force.y) >= 3.7 or ft_msg.wrench.force.z <= -2.8 else False
         if deetect_contact:
             print("############# Contacted #############\n", ft_msg.wrench)
+            print("#####################################\n")
 
         return deetect_contact
         

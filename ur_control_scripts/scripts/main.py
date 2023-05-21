@@ -12,7 +12,7 @@ from pathlib import Path
 
 from ur_control_moveit import arm, ur_gripper_controller, ft_sensor
 from motion_capture.get_object_pose import GetChikuwaPose, GetShrimpPose, GetEggplantPose, GetGreenPapperPose, GetJigPose
-from utils import transformations, random_pose, pose_plot
+from utils import transformations, random_pose, state_plot
 
 import geometry_msgs.msg
 
@@ -33,7 +33,7 @@ class UrControl(object):
         self.gjp = GetJigPose()
         # utils
         self.trf = transformations.Transformations()
-        self.plot = pose_plot.PlotPose()
+        self.plot = state_plot.PlotPose()
         # 
         self.forward_basic_joint = [0.9419943318766126, -1.4060059478330746, 1.4873566760577779, -1.6507993112633637, -1.5705307531751274, -0.629176246773139]
         self.backward_basic_joint = [-2.234010390909684, -1.3927192120354697, 1.472050134256044, -1.65123476873738, -1.5690119071493065, -0.629176246773139]

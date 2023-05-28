@@ -103,15 +103,14 @@ class RvizSetup(object):
         scene = self.scene
 
         box_pose = geometry_msgs.msg.PoseStamped()
-        box_pose.header.frame_id = "world"
-        #box_pose.pose.orientation.w = 1.0
+        box_pose.header.frame_id = "base_link"
         box_pose.pose.position.x = pose[0]
         box_pose.pose.position.y = pose[1]
         box_pose.pose.position.z = pose[2]
         box_pose.pose.orientation.x = 0
         box_pose.pose.orientation.y = 0
-        box_pose.pose.orientation.z = 1.0
-        box_pose.pose.orientation.w = 0
+        box_pose.pose.orientation.z = 0.0
+        box_pose.pose.orientation.w = 1.0
 
         scene.add_box(box_name, box_pose, size=(size[0], size[1], size[2]))
 
@@ -123,15 +122,14 @@ class RvizSetup(object):
         scene = self.scene
 
         cylinder_pose = geometry_msgs.msg.PoseStamped()
-        cylinder_pose.header.frame_id = "world"
-        #box_pose.pose.orientation.w = 1.0
+        cylinder_pose.header.frame_id = "base_link"
         cylinder_pose.pose.position.x = pose[0]
         cylinder_pose.pose.position.y = pose[1]
         cylinder_pose.pose.position.z = pose[2]
         cylinder_pose.pose.orientation.x = 0
         cylinder_pose.pose.orientation.y = 0
-        cylinder_pose.pose.orientation.z = 1.0
-        cylinder_pose.pose.orientation.w = 0
+        cylinder_pose.pose.orientation.z = 0.0
+        cylinder_pose.pose.orientation.w = 1.0
 
         scene.add_cylinder(cylinder_name, cylinder_pose, height = height, radius = radius)
 
@@ -142,7 +140,7 @@ class RvizSetup(object):
         mesh_file = '/root/catkin_ws/src/ur3e_tutorial/ur_gazebo_motion_range/models/dish/mesh/dish.stl'
 
         mesh_pose = geometry_msgs.msg.PoseStamped()
-        mesh_pose.header.frame_id = "world"
+        mesh_pose.header.frame_id = "base_link"
         mesh_pose.pose.position.x = pose[0]
         mesh_pose.pose.position.y = pose[1]
         mesh_pose.pose.position.z = pose[2]
@@ -156,23 +154,24 @@ def main():
         setup = RvizSetup("arm")
         # setup.add_box(name = "FAKE", pose = [3, 3, 0.05], size = [0.1, 0.1, 0.1])
         table_length = [0.9, 1.5]
+        z_offset = -0.105
 
-        setup.add_box(name = "base_box_1", pose = [0, 0, 0.0525], size = [table_length[0], 0.21, 0.104])
-        setup.add_box(name = "base_box_2", pose = [(table_length[0] - 0.125) / 2, 0, 0.0525], size = [0.125, 0.4, 0.104])
-        setup.add_box(name = "base_box_3", pose = [-(table_length[0] - 0.125) / 2, 0, 0.0525], size = [0.125, 0.4, 0.104])
-        setup.add_box(name = "table", pose = [0, 0, 0], size = [table_length[0], table_length[1], 0.01])
+        setup.add_box(name = "base_box_1", pose = [0, 0, 0.0525 + z_offset], size = [table_length[0], 0.21, 0.104])
+        setup.add_box(name = "base_box_2", pose = [(table_length[0] - 0.125) / 2, 0, 0.0525 + z_offset], size = [0.125, 0.4, 0.104])
+        setup.add_box(name = "base_box_3", pose = [-(table_length[0] - 0.125) / 2, 0, 0.0525 + z_offset], size = [0.125, 0.4, 0.104])
+        setup.add_box(name = "table", pose = [0, 0, 0 + z_offset], size = [table_length[0], table_length[1], 0.01])
 
         # restriction
         wall_height = 1.0
         wall_length = table_length
-        setup.add_box(name = "wall1", pose = [0, -(-0.03 + wall_length[1])/2, wall_height / 2], size = [wall_length[0], 0.03, wall_height])
-        setup.add_box(name = "wall2", pose = [-(-0.03 + wall_length[0])/2, 0, wall_height / 2], size = [0.03, wall_length[1], wall_height])
-        setup.add_box(name = "wall3", pose = [0, (-0.03 + wall_length[1])/2, wall_height / 2], size = [wall_length[0], 0.03, wall_height])
-        setup.add_box(name = "wall4", pose = [(-0.03 + wall_length[0])/2 + 0.06, 0, wall_height / 2], size = [0.03, wall_length[1], wall_height])
-        setup.add_box(name = "ceiling", pose = [0, 0, wall_height], size = [table_length[0], table_length[1], 0.03])
+        setup.add_box(name = "wall1", pose = [0, -(-0.03 + wall_length[1])/2, wall_height / 2 + z_offset], size = [wall_length[0], 0.03, wall_height])
+        setup.add_box(name = "wall2", pose = [-(-0.03 + wall_length[0])/2, 0, wall_height / 2 + z_offset], size = [0.03, wall_length[1], wall_height])
+        setup.add_box(name = "wall3", pose = [0, (-0.03 + wall_length[1])/2, wall_height / 2 + z_offset], size = [wall_length[0], 0.03, wall_height])
+        setup.add_box(name = "wall4", pose = [(-0.03 + wall_length[0])/2 + 0.06, 0, wall_height / 2 + z_offset], size = [0.03, wall_length[1], wall_height])
+        setup.add_box(name = "ceiling", pose = [0, 0, wall_height + z_offset], size = [table_length[0], table_length[1], 0.03])
 
-        setup.add_box(name = "mocap1", pose = [0, -(-0.16 + wall_length[1])/2, wall_height / 2], size = [0.16, 0.1, 0.2])
-        setup.add_box(name = "mocap2", pose = [0, (-0.16 + wall_length[1])/2, wall_height / 2], size = [0.16, 0.1, 0.2])
+        setup.add_box(name = "mocap1", pose = [0, -(-0.16 + wall_length[1])/2, wall_height / 2 + z_offset], size = [0.16, 0.1, 0.2])
+        setup.add_box(name = "mocap2", pose = [0, (-0.16 + wall_length[1])/2, wall_height / 2 + z_offset], size = [0.16, 0.1, 0.2])
 
         # setup.add_mesh(name = "dish1", pose = [0.12, 0.12, 0.01], size_scale = [0.01, 0.01, 0.01])
 

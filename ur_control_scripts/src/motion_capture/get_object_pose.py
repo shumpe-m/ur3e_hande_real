@@ -7,7 +7,7 @@ from utils import transformations
 class GetObjectPose(object):
     def __init__(self):
         self.trf = transformations.Transformations()
-        self.mocap_offset = [0.02879, 0.3333, 0, 0.0, 0.0, 0.0] #xzy  [0.02879, 0.3333, -0.005, 0.0, 0.0, 0.0]
+        self.mocap_offset = [0.02879, 0.3333, -0.105, 0.0, 0.0, 0.0] #xzy  [0.02879, 0.3333, -0.005, 0.0, 0.0, 0.0]
 
     def wait_get_pose(self, pose_msg):
         """

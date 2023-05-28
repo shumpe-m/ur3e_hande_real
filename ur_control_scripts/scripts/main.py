@@ -69,7 +69,7 @@ class UrControl(object):
         can_pick = False
         can_execute = False
         above_pose = copy.deepcopy(g_pose)
-        above_pose.position.z = 0.20
+        above_pose.position.z = 0.1
         e = self.trf.quaternion_to_euler(quaternion = g_pose.orientation)
         e = self.normalize_angles(e)
 
@@ -128,7 +128,7 @@ class UrControl(object):
         can_execute = False
         g_pose = copy.deepcopy(goal_pose)
         above_pose = copy.deepcopy(goal_pose)
-        above_pose.position.z = 0.20
+        above_pose.position.z = 0.1
         e = self.trf.quaternion_to_euler(quaternion = g_pose.orientation)
         e = self.normalize_angles(e)
         

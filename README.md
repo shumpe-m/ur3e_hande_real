@@ -35,7 +35,16 @@ rvizを起動。
 roslaunch ur_hande_moveit_config start_moveit.launch
 ```
 
-### script
+### Calibration
+カメラを使う場合キャリブレーションを行う必要がある。（realsense D435 ）
+
+参考：https://ros-planning.github.io/moveit_tutorials/doc/hand_eye_calibration/hand_eye_calibration_tutorial.html
+
+```
+roslaunch realsense2_camera rs_rgbd.launch
+```
+
+### Python Scripts
 
 まず、rviz内の接触回避するオブジェクトを呼び出す。
 

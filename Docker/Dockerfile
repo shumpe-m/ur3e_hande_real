@@ -19,46 +19,91 @@ RUN apt-get update && apt-get install -y \
     unzip \
     git \
     iputils-ping net-tools \
-    python3-tk \
-    python3-pip
+    curl
 
 #####################
 ### INSTALL CMAKE ###
 #####################
 # Reference: https://apt.kitware.com/
 RUN git clone https://gitlab.kitware.com/cmake/cmake.git \
-	&& cd cmake \
-	&& git checkout tags/v3.16.3 \
-	&& ./bootstrap --parallel=8 \
-	&& make -j8 \
-	&& make install \
-	&& cd .. \
-	&& rm -rf cmake
+    && cd cmake \
+    && git checkout tags/v3.16.3 \
+    && ./bootstrap --parallel=8 \
+    && make -j8 \
+    && make install \
+    && cd .. \
+    && rm -rf cmake
 
 ###########################################
 ### INSTALL Universal_Robots_ROS_Driver ###
 ###########################################
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
     python3-rospkg \
     python3-catkin-pkg \
     python3-rosinstall \
     python3-rosinstall-generator \
     python3-rosdep \
     python3-catkin-tools \
+    python3-pip \
     ros-noetic-moveit-commander \
-    python3 \
     ros-noetic-universal-robots \
     build-essential
 
 RUN /bin/bash -c "source /opt/ros/noetic/setup.bash"
 RUN mkdir -p /root/catkin_ws/src
-RUN cd /root/catkin_ws \
-    && git clone https://github.com/UniversalRobots/Universal_Robots_ROS_Driver.git src/Universal_Robots_ROS_Driver 
+RUN cd /root/catkin_ws && \
+    git clone https://github.com/UniversalRobots/Universal_Robots_ROS_Driver.git src/Universal_Robots_ROS_Driver && \
+    git clone https://github.com/ros-planning/moveit_calibration.git src/moveit_calibration
 
 
-##############
-### ur pkg ###
-##############
+##################  
+### EXTRA DEPS ###
+##################
+RUN pip3 install catkin_pkg \
+    && pip3 install "pybind11[global]" \
+    && pip3 install pyyaml \
+    && pip3 install empy \
+    && wget -q --show-progress --progress=bar:force https://gitlab.com/libeigen/eigen/-/archive/3.3.7/eigen-3.3.7.tar.gz \
+    && tar -xzf eigen-3.3.7.tar.gz \
+    && cd eigen-3.3.7 \
+    && mkdir build && cd build \
+    && cmake .. \
+    && make install \
+    && cd ../.. \
+    && rm eigen-3.3.7.tar.gz
+
+
+#########################
+### INSTALL REALSENSE ###
+#########################
+RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+
+RUN apt-get update \
+    && apt-get install -y software-properties-common
+
+RUN apt-get update \
+    && apt-key adv --keyserver keyserver.ubuntu.com --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE || apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE \
+    && add-apt-repository "deb https://librealsense.intel.com/Debian/apt-repo $(lsb_release -cs) main" -u \
+    && apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 6F3EFCDE \
+    && apt-get update \
+    # Install the librealsense, Development packages & and other needed packages
+    && apt-get install -y \
+    librealsense2-dkms \
+    librealsense2-utils \
+    librealsense2-dev  \
+    librealsense2-dbg \
+    v4l-utils \
+    # Upgrade the local packages 
+    && apt-get update && apt-get --only-upgrade install -y librealsense2-utils librealsense2-dkms ros-noetic-realsense2-camera ros-noetic-ddynamic-reconfigure
+RUN cd /root/catkin_ws && \
+    git clone -b ros1-legacy https://github.com/IntelRealSense/realsense-ros.git src/realsense-ros && \
+    git clone https://github.com/ros-drivers/rgbd_launch.git src/rgbd_launch
+
+
+######################
+### INSTALL ur pkg ###
+######################
 # RUN cd /root/catkin_ws \
 #     && git clone -b noetic-real https://github.com/shumpe-m/ur3.git src/ros_ur3 \
 #     && git clone -b main https://github.com/shumpe-m/ur3e_hande_real.git src/ur3e_hande_real

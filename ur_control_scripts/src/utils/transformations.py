@@ -1,129 +1,126 @@
-import rospy
 import numpy as np
-import message_filters
-from geometry_msgs.msg import PoseStamped
-from utils import transformations
+import tf
+import copy
 
-class GetObjectPose(object):
+import geometry_msgs.msg
+
+class Transformations(object):
     def __init__(self):
-        self.trf = transformations.Transformations()
-        self.mocap_offset = [0.02879, 0.3333, 0, 0.0, 0.0, 0.0] #xzy  [0.02879, 0.3333, -0.005, 0.0, 0.0, 0.0]
+        super(Transformations, self).__init__()
 
-    def wait_get_pose(self, pose_msg):
+    def rot(self, rpy):
         """
-        This function obtains the object's orientation from the motion capture.
-
+        This function calculates a rotation matrix.
+        Parameters
+        ----------
+        rpy : list [roll, pitch, yaw]
+            rpy is roll, pitch, and yaw.
         Returns
         -------
-        Chikuwa_pose : class 'geometry_msgs.msg._Pose.Pose'
-            Chikuwa's posture.
-
-        Shrimp_pose : class 'geometry_msgs.msg._Pose.Pose'
-            Shrimp's posture.
+        R : numpy.ndarray
+            Rotation matrix in 3 dimensions.
         """
-        while pose_msg.header.frame_id == '':
-            pass
-        pose_msg = self.pose_normalization(pose_msg)
-        return pose_msg
+        roll = rpy[0]
+        pitch = rpy[1]
+        yaw = rpy[2]
 
-    def pose_normalization(self, pose_msg):
+        Rx = np.array([[1, 0, 0],
+                    [0, np.cos(roll), np.sin(roll)],
+                    [0, -np.sin(roll), np.cos(roll)]])
+
+        Ry = np.array([[np.cos(pitch), 0, -np.sin(pitch)],
+                    [0, 1, 0],
+                    [np.sin(pitch), 0, np.cos(pitch)]])
+
+        Rz = np.array([[np.cos(yaw), np.sin(yaw), 0],
+                    [-np.sin(yaw), np.cos(yaw), 0],
+                    [0, 0, 1]])
+
+        R = Rz.dot(Ry).dot(Rx)
+
+        return R
+
+    def transform_leftHanded_to_rightHanded(self, local_pose, offset):
         """
-        This function normalizes the coordinate axes and positions of the motion capture and robot.
+        This function converts the coordinate system from right-handed to left-handed.
+        Used to convert from motion capture to the robot's coordinate system.
+        It should be changed according to the user's environment.
+
+        Parameters
+        ----------
+        local_pose : class 'geometry_msgs.msg._Pose.Pose'
+            Posture on motion capture.
+
+        offset : list
+            Offset between the motion capture origin and the Rviz origin.
 
         Returns
         -------
         pose : class 'geometry_msgs.msg._Pose.Pose'
-            The posture of the object in the coordinate space of the robot (Rviz).
+            Attitude of the robot (Rviz) in the coordinate axes.
         """
-        pose = PoseStamped().pose
-        # pose.position.x = pose_msg.pose.position.x
-        # pose.position.y = pose_msg.pose.position.z
-        # pose.position.z = pose_msg.pose.position.y
-        pose.position = pose_msg.pose.position
-        pose.orientation = pose_msg.pose.orientation
-        pose = self.trf.transform_leftHanded_to_rightHanded(pose, self.mocap_offset)
+        pose = copy.deepcopy(local_pose)
 
+        pose.position.x = local_pose.position.x + offset[0]
+        pose.position.y = -local_pose.position.z + offset[1]
+        pose.position.z = local_pose.position.y + offset[2]
+
+        pose.orientation.x = local_pose.orientation.z
+        pose.orientation.y = -local_pose.orientation.x
+        pose.orientation.z = local_pose.orientation.y
+        pose.orientation.w = -local_pose.orientation.w
         return pose
+    
+    def euler_to_quaternion(self, euler = [3.140876586229683, 0.0008580159308600959, -0.0009655065200909574]):
+        """
+        Convert Euler Angles to Quaternion.
 
+        Parameters
+        ----------
+        euler : list or class 'geometry_msgs.msg._Pose.Pose'
+            The Euler angles you want to convert.
 
-class GetChikuwaPose(GetObjectPose):
-    def __init__(self):
-        super().__init__()
-        # ros message
-        self.sub_vector = rospy.Subscriber("/mocap_pose_topic/Chikuwa_pose", PoseStamped, self.callbackVector)
-        self.chikuwa_pose = PoseStamped()
+        Returns
+        -------
+        q : numpy.ndarray
+            Quaternion values.
+        """
+        if type(euler) == geometry_msgs.msg._Pose.Pose:
+            print("The type of variables is different.")
+        elif type(euler) == list:
+            q = tf.transformations.quaternion_from_euler(euler[0], euler[1], euler[2])
+        elif type(euler) == np.ndarray:
+            euler = euler.tolist()
+            q = tf.transformations.quaternion_from_euler(euler[0], euler[1], euler[2])
+        else:
+            print("The type of variables is different.")
 
-    def callbackVector(self, msg):
-        self.chikuwa_pose = msg
+        return list(q)
 
-    def get_pose(self):
-        pose = self.wait_get_pose(self.chikuwa_pose)
-        # offset mocap
-        # pose.position.z += 0.00
-        return pose
+    def quaternion_to_euler(self, quaternion):
+        """
+        Convert Quaternion to Euler Angles.
 
+        Parameters
+        ----------
+        quaternion : list or class 'geometry_msgs.msg._Quaternion.Quaternion'
+            The Quaternion you want to convert.
 
-class GetShrimpPose(GetObjectPose):
-    def __init__(self):
-        super().__init__()
-        # ros message
-        self.sub_vector = rospy.Subscriber("/mocap_pose_topic/Shrimp_pose", PoseStamped, self.callbackVector)
-        self.shrimp_pose = PoseStamped()
+        Returns
+        -------
+        e : numpy.ndarray
+            Euler Angles.
+        """
+        if type(quaternion) == geometry_msgs.msg._Quaternion.Quaternion:
+            e = tf.transformations.euler_from_quaternion((quaternion.x, quaternion.y, quaternion.z, quaternion.w))
+        elif type(quaternion) == list:
+            e = tf.transformations.euler_from_quaternion((quaternion[0], quaternion[1], quaternion[2], quaternion[3]))
+        elif type(quaternion) == np.ndarray:
+            quaternion = quaternion.tolist()
+            e = tf.transformations.euler_from_quaternion((quaternion[0], quaternion[1], quaternion[2], quaternion[3]))
+        else:
+            print("The type of variables is different.")
 
-    def callbackVector(self, msg):
-        self.shrimp_pose = msg
+        return list(e)
 
-    def get_pose(self):
-        pose = self.wait_get_pose(self.shrimp_pose)
-        # offset mocap
-        # pose.position.z -= 0.004
-        return pose
-
-
-class GetEggplantPose(GetObjectPose):
-    def __init__(self):
-        super().__init__()
-        # ros message
-        self.sub_vector = rospy.Subscriber("/mocap_pose_topic/Eggplant_pose", PoseStamped, self.callbackVector)
-        self.eggplamt_pose = PoseStamped()
-
-    def callbackVector(self, msg):
-        self.eggplamt_pose = msg
-
-    def get_pose(self):
-        pose = self.wait_get_pose(self.eggplamt_pose)
-        return pose
-
-
-class GetGreenPapperPose(GetObjectPose):
-    def __init__(self):
-        super().__init__()
-        # ros message
-        self.sub_vector = rospy.Subscriber("/mocap_pose_topic/Green_papper_pose", PoseStamped, self.callbackVector)
-        self.green_papper_pose = PoseStamped()
-
-    def callbackVector(self, msg):
-        self.green_papper_pose = msg
-
-    def get_pose(self):
-        pose = self.wait_get_pose(self.green_papper_pose)
-        # offset mocap
-        # pose.position.z -= 0.002
-        return pose
-
-class GetJigPose(GetObjectPose):
-    def __init__(self):
-        super().__init__()
-        # ros message
-        self.sub_vector = rospy.Subscriber("/mocap_pose_topic/Dish_pose", PoseStamped, self.callbackVector)
-        self.jig_pose = PoseStamped()
-
-    def callbackVector(self, msg):
-        self.jig_pose = msg
-
-    def get_pose(self):
-        pose = self.wait_get_pose(self.jig_pose)
-        # offset mocap
-        # pose.position.z += 0.01
-        # pose.position.y += 0.005
-        return pose
+        

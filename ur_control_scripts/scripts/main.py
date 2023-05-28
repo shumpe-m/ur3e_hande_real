@@ -163,7 +163,7 @@ class UrControl(object):
 
             # Open the gripper.
             gr_state = self.gripper_control.rq_gripper_position()
-            self.gripper_control.rq_gripper_move_to(gr_state - 40)
+            self.gripper_control.rq_gripper_move_to(gr_state - 70) # 40
             rospy.sleep(0.3)
 
             # Lift the arm.
@@ -179,7 +179,7 @@ class UrControl(object):
     
     def mocap_pick_and_place(self):
         self.set_goal_pose()
-        for i in range(4):
+        for i in range(1):
             # stack target state
             for obj in self.order_of_placement:
                 target_pose = self.goal_pose[obj]

@@ -11,7 +11,7 @@ from utils import transformations
 
 class PlotPose:
     def plot_p(self, target_states, states):
-        trf = utils.Transformations()
+        trf = transformations.Transformations()
         fig,ax= plt.subplots(2,4,figsize=plt.figaspect(1),subplot_kw=dict(projection='3d'))
         ax=ax.ravel()
 

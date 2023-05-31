@@ -40,9 +40,6 @@ roslaunch ur_hande_moveit_config start_moveit.launch
 
 参考：https://ros-planning.github.io/moveit_tutorials/doc/hand_eye_calibration/hand_eye_calibration_tutorial.html
 
-```
-roslaunch realsense2_camera rs_rgbd.launch
-```
 
 ### Python Scripts
 

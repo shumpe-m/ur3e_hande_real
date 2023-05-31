@@ -12,6 +12,7 @@ from pathlib import Path
 
 from ur_control_moveit import arm, ur_gripper_controller, ft_sensor
 from motion_capture.get_object_pose import GetChikuwaPose, GetShrimpPose, GetEggplantPose, GetGreenPapperPose, GetJigPose
+from motion_capture import get_camera_pose
 from utils import transformations, random_pose, state_plot
 
 import geometry_msgs.msg
@@ -31,6 +32,8 @@ class UrControl(object):
         self.gep = GetEggplantPose()
         self.ggp = GetGreenPapperPose()
         self.gjp = GetJigPose()
+        # self.gcamp = GetCameraPose()
+        self.gcamp = get_camera_pose.GetCameraPose()
         # utils
         self.trf = transformations.Transformations()
         self.plot = state_plot.PlotPose()
@@ -301,8 +304,9 @@ class UrControl(object):
 
 
     def test3(self):
-        gr_state = self.gripper_control.rq_gripper_position()
-        print(gr_state)
+        camera = self.gcamp.get_link_pose()
+        # camera = self.gcamp.get_pose()
+        print(camera)
 
 
     def roop_test(self):
@@ -439,7 +443,7 @@ class UrControl(object):
 def main():
     try:
         action = UrControl()
-        action.go_default_pose(area="")
+        action.go_default_pose(area="forwrad")
 
         # action.mocap_pick_and_place()
         # action.self_reset()
@@ -448,14 +452,14 @@ def main():
 
         # action.save_goal_pose("back_pose_")
 
-        action.mocap_pick_and_place()
+        # action.mocap_pick_and_place()
         # print("backward")
         # action.self_reset()
 
         # action.roop_test()
-        # action.test3()
+        action.test3()
 
-        action.go_default_pose(area="")
+        # action.go_default_pose(area="")
 
     except rospy.ROSInterruptException:
         return

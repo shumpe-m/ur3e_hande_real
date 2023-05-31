@@ -45,6 +45,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-rosinstall-generator \
     python3-rosdep \
     python3-catkin-tools \
+    python3-tk \
     python3-pip \
     ros-noetic-moveit-commander \
     ros-noetic-universal-robots \

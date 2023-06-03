@@ -12,11 +12,15 @@ from pathlib import Path
 
 from ur_control_moveit import arm, ur_gripper_controller, ft_sensor
 from motion_capture.get_object_pose import GetChikuwaPose, GetShrimpPose, GetEggplantPose, GetGreenPapperPose, GetJigPose
-from motion_capture import get_camera_pose
+from camera import get_camera_pose
 from utils import transformations, random_pose, state_plot
 
 import geometry_msgs.msg
 
+import matplotlib.pyplot as plt
+import cv2
+from cv_bridge import CvBridge, CvBridgeError
+import seaborn as sns
 
 class UrControl(object):
     def __init__(self):
@@ -38,14 +42,16 @@ class UrControl(object):
         self.trf = transformations.Transformations()
         self.plot = state_plot.PlotPose()
         # 
-        self.forward_basic_joint = [0.9419943318766126, -1.4060059478330746, 1.4873566760577779, -1.6507993112633637, -1.5705307531751274, -0.629176246773139]
-        self.backward_basic_joint = [-2.234010390909684, -1.3927192120354697, 1.472050134256044, -1.65123476873738, -1.5690119071493065, -0.629176246773139]
+        # self.forward_basic_joint = [0.9419943318766126, -1.4060059478330746, 1.4873566760577779, -1.6507993112633637, -1.5705307531751274, -0.629176246773139]
+        self.forward_basic_joint = [0.9827040433883667, -1.7932526073851527, 1.555544678364889, -1.3328328293612977, -1.5719154516803187, -0.5877450148211878]
+        # self.backward_basic_joint = [-2.234010390909684, -1.3927192120354697, 1.472050134256044, -1.65123476873738, -1.5690119071493065, -0.629176246773139]
+        self.backward_basic_joint = [-2.144214932118551, -1.8263160190977992, 1.5622089544879358, -1.3076815468123932, -1.5734213034259241, -0.576937500630514]
         self.mid_basic_joint = [0, -1.3927192120354697, 1.472050134256044, -1.65123476873738, -1.5690119071493065, -0.629176246773139]
         self.forward_basic_anguler = [3.14, 0, -1.57]
         self.backward_basic_anguler = [3.14, 0, -1.57]
 
-        self.gripper_control.rq_reset()
-        self.gripper_control.rq_activate()
+        # self.gripper_control.rq_reset()
+        # self.gripper_control.rq_activate()
         self.gripper_control.rq_init_gripper(speed=180, force=1)
 
         self.obj_name = ["Chikuwa", "Shrimp", "Eggplant", "Green_papper"]
@@ -56,6 +62,8 @@ class UrControl(object):
 
         self.obs_state = np.array([])
         self.total_target_state = np.array([])
+
+        self.ft.reset_ftsensor()
 
     def go_default_pose(self, area = ""):
         if area == "forwrad":
@@ -278,7 +286,84 @@ class UrControl(object):
         
 
     def test(self):
-        pass
+        # gpc = get_camera_pose.GetPointCloud()
+        # xyz, rgb = gpc.get_pose()
+        # print(xyz.shape)
+        # print(rgb.shape)
+        # point = np.concatenate([xyz, rgb], 1)
+        # print(point.shape)
+        camera = self.gcamp.get_link_pose()
+        gdi = get_camera_pose.GetDepthImg()
+        gci = get_camera_pose.GetColorImg()
+        depth = gdi.get_depth()
+        rgb = gci.get_rgb()
+
+        self.bridge = CvBridge()
+        depth = self.bridge.imgmsg_to_cv2(depth, 'passthrough')
+        color = self.bridge.imgmsg_to_cv2(rgb, 'rgb8')
+
+        print(depth.shape)
+
+
+
+        # height, width = depth.shape
+        # scale = 1
+        # crop_size = [int(height * scale), int(width * scale)]
+        # crop_size = color.shape
+        # top = int((height / 2) - (crop_size[0] / 2))
+        # bottom = top + crop_size[0]
+        # left = int((width / 2) - (crop_size[1] / 2))
+        # right = left + crop_size[1]
+        # depth = depth[top:bottom, left:right]
+
+        depth_image = np.array(depth, dtype=np.float32)
+        # # cv2.normalize(depth_image, depth_image, 0, 1, cv2.NORM_MINMAX)
+
+        # sns.heatmap(depth_image, vmin=0, vmax=500, cmap='jet')
+
+        # alpha = 0.7
+        # blended = cv2.addWeighted(color, alpha, depth_image, 1 - alpha, 0)
+
+        # # 結果を表示する。
+        # plt.imshow(cv2.cvtColor(blended, cv2.COLOR_BGR2RGB))
+        # plt.axis('off')
+
+        plt.imshow(depth_image, cmap='gray')
+        # plt.imshow(color, cmap='gray')
+        plt.show()
+
+
+        # camera
+        gdinfo = get_camera_pose.GetDepthInfo()
+        k = gdinfo.get_depth_info()
+        k_inv = np.linalg.inv(k)
+        u = float(input("x: "))
+        v = float(input("y: "))
+        z = depth[int(v), int(u)] * 0.001
+        uvw = np.array([u, v, 1]) * z
+        print(uvw)
+        xyz = np.dot(k_inv, uvw)
+        print(xyz)
+
+
+        q = self.trf.euler_to_quaternion(euler = [3.14, 0, -np.pi*1.5])
+        camera.pose.position.x += xyz[0]
+        camera.pose.position.y -= xyz[1]
+        camera.pose.position.z = -0.06
+        can_execute = self.arm_control.go_to_pose(pose = camera.pose, ori = q, vel_scale = 0.5)
+
+
+        # print(depth_image)
+
+
+        # cv2.namedWindow("depth_image")
+
+        # cv2.imshow("depth_image", depth_image)
+        # cv2.waitKey(10000)
+
+
+
+
 
 
     def test2(self):
@@ -304,9 +389,76 @@ class UrControl(object):
 
 
     def test3(self):
+        ee_p = self.arm_control.get_current_pose()
+        print(ee_p)
         camera = self.gcamp.get_link_pose()
-        # camera = self.gcamp.get_pose()
         print(camera)
+        # camera = self.gcamp.get_pose()
+        
+
+
+        gdi = get_camera_pose.GetDepthImg()
+        gci = get_camera_pose.GetColorImg()
+        depth = gdi.get_depth()
+        rgb = gci.get_rgb()
+
+        self.bridge = CvBridge()
+        depth = self.bridge.imgmsg_to_cv2(depth, 'passthrough')
+        color = self.bridge.imgmsg_to_cv2(rgb, 'rgb8')
+        depth_image = np.array(depth, dtype=np.float32)
+
+        plt.imshow(depth_image, cmap='gray')
+        # plt.imshow(color, cmap='gray')
+        plt.show()
+
+        gdinfo = get_camera_pose.GetDepthInfo()
+        k = gdinfo.get_depth_info()
+        k_inv = np.linalg.inv(k)
+        u = float(input("x: "))
+        v = float(input("y: "))
+        z = depth[int(v), int(u)] * 0.001
+        uvw = np.array([u, v, 1]) * z
+        print(uvw)
+        xyz = np.dot(k_inv, uvw)
+        print(xyz)
+
+
+        q = self.trf.euler_to_quaternion(euler = [3.14, 0, -np.pi*1.5])
+        camera.pose.position.x += xyz[0]
+        camera.pose.position.y -= xyz[1]
+        camera.pose.position.z = -(z - camera.pose.position.z)
+        can_execute = self.arm_control.go_to_pose(pose = camera.pose, ori = q, vel_scale = 0.5)
+
+    # def find_defoult_joint(self):
+    #     ee_p = self.arm_control.get_current_pose()
+    #     print(ee_p)
+    #     camera = self.gcamp.get_link_pose()
+    #     print(camera)
+    #     # camera = self.gcamp.get_pose()
+    #     q = self.trf.euler_to_quaternion(euler = [3.14, 0, -np.pi*1.5])
+    #     pose = [0.00 + ee_p.position.x - camera.pose.position.x,
+    #             0.35 + ee_p.position.y - camera.pose.position.y,
+    #             0.20]
+    #     print(pose)
+    #     can_execute = self.arm_control.go_to_pose(pose = pose, ori = q, vel_scale = 0.5)
+
+
+    #     gdi = get_camera_pose.GetDepthImg()
+    #     gci = get_camera_pose.GetColorImg()
+    #     depth = gdi.get_depth()
+    #     rgb = gci.get_rgb()
+
+    #     self.bridge = CvBridge()
+    #     depth = self.bridge.imgmsg_to_cv2(depth, 'passthrough')
+    #     color = self.bridge.imgmsg_to_cv2(rgb, 'rgb8')
+    #     depth_image = np.array(depth, dtype=np.float32)
+
+    #     plt.imshow(depth_image, cmap='gray')
+    #     # plt.imshow(color, cmap='gray')
+    #     plt.show()
+
+    #     joint = self.arm_control.get_current_joint()
+    #     print("joint: ", joint)
 
 
     def roop_test(self):
@@ -444,6 +596,7 @@ def main():
     try:
         action = UrControl()
         action.go_default_pose(area="forwrad")
+
 
         # action.mocap_pick_and_place()
         # action.self_reset()

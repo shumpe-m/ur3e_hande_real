@@ -1,4 +1,5 @@
-FROM osrf/ros:noetic-desktop-full
+FROM nvidia/cuda:11.3.1-cudnn8-devel-ubuntu20.04
+# FROM osrf/ros:noetic-desktop-full
 
 WORKDIR /root/
 
@@ -7,6 +8,9 @@ ENV NVIDIA_VISIBLE_DEVICES \
 ENV NVIDIA_DRIVER_CAPABILITIES \
     ${NVIDIA_DRIVER_CAPABILITIES:+$NVIDIA_DRIVER_CAPABILITIES,}graphics
 ENV DEBIAN_FRONTEND=noninteractive
+
+ENV TZ=Asia/Tokyo
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 
 ########################
@@ -18,8 +22,32 @@ RUN apt-get update && apt-get install -y \
     wget \
     unzip \
     git \
-    iputils-ping net-tools \
-    curl
+    iputils-ping \
+	net-tools \
+    curl \
+	init \
+    build-essential \
+    gcc \
+    g++ \
+    gnupg \
+    make \
+    libtool \
+    texinfo \
+    dpkg-dev \
+    pkg-config \
+    libgl1-mesa-glx \
+    libcurl4-openssl-dev \
+    libssl-dev 
+
+
+######################
+### INSTALL Noetic ###
+######################
+RUN sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list' && \
+    curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | sudo apt-key add -
+RUN apt-get update && apt-get install -y ros-noetic-desktop
+RUN /bin/bash -c "source /opt/ros/noetic/setup.bash"
+
 
 #####################
 ### INSTALL CMAKE ###
@@ -34,17 +62,20 @@ RUN git clone https://gitlab.kitware.com/cmake/cmake.git \
     && cd .. \
     && rm -rf cmake
 
+
 ###########################################
 ### INSTALL Universal_Robots_ROS_Driver ###
 ###########################################
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
+    python3-dev \
     python3-rospkg \
     python3-catkin-pkg \
     python3-rosinstall \
     python3-rosinstall-generator \
     python3-rosdep \
     python3-catkin-tools \
+    python3-setuptools \
     python3-tk \
     python3-pip \
     ros-noetic-moveit-commander \
@@ -124,4 +155,24 @@ RUN cd /root/catkin_ws \
     && echo "chmod -R u+x /root/catkin_ws/src/ur3e_hande_real/ur_control_scripts/scripts" >> ~/.bashrc
 
 
+#####################
+### INSTALL torch ###
+#####################
+
+RUN pip3 install \
+    torch==1.10.0+cu113 \
+    torchvision==0.11.1+cu113 \
+    torchaudio==0.10.0+cu113 \
+    -f https://download.pytorch.org/whl/cu113/torch_stable.html 
+RUN pip3 install \
+    numpy \
+    opencv-python \
+    matplotlib \
+    tensorboard \
+    scikit-learn \
+    seaborn \
+    tqdm \
+    loguru
+
+RUN echo "source /opt/ros/noetic/setup.bash" >> ~/.bashrc
 RUN echo "cd /root/catkin_ws" >> ~/.bashrc

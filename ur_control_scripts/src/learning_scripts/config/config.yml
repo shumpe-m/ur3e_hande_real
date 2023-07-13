@@ -1,0 +1,18 @@
+depth:
+  distance_min: 0.33
+  distance_max: 0.46
+manipulation:
+  episode: 10000
+  random: 400
+inference:
+  img_height: 480
+  img_width: 640
+  size_original_cropped: 250
+  size_output: 32
+  size_cropped: 150
+  reward_g_shape: 60
+train:
+  epoch: 50
+  train_batch_size: 512
+  validation_batch_size: 512
+  percent_validation_set: 0.2

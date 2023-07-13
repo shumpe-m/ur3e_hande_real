@@ -4,33 +4,41 @@ import sys
 from subprocess import Popen
 import time
 import argparse
+import json
+import pickle
+import yaml
+from pathlib import Path
 
+import math
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-import json
-import pickle
-from pathlib import Path
 
+from manipulate import UrControl
 from learning_scripts.learning.train import Train
 from learning_scripts.inference.inference import Inference
 from learning_scripts.inference.inference_utils import InferenceUtils
-from manipulate import UrControl
 from learning_scripts.utils.param import Mode, SelectionMethod
-from learning_scripts.action.grasp_decision import GraspDecision
-from learning_scripts.learning.train import Train
 
 
 class SelfLearning(UrControl):
    def __init__(self, previous_experience, dataset_path, percentage_secondary):
       super().__init__()
-      self.inference = Inference()
-      self.grasp_decision = GraspDecision()
-      self.load_train_model =  False
+      # learning_scrpipts path
+      self.ls_path = "/root/catkin_ws/src/ur3e_hande_real/ur_control_scripts/src/learning_scripts"
+      with open(self.ls_path + '/config/config.yml', 'r') as yml:
+         config = yaml.safe_load(yml)
+      self.total_episodes = config["manipulation"]["episode"]
+      self.random = config["manipulation"]["random"]
+      self.min = config["depth"]["distance_min"]
+      self.max = config["depth"]["distance_max"]
+      
+      self.inference = Inference(upper_random_pose=[config["inference"]["img_width"], config["inference"]["img_height"], 1.484], ls_path=self.ls_path)
+      self.load_train_model = False
       self.image_states = ["grasp", "place_b", "goal", "place_a"]
       self.percentage_secondary = percentage_secondary
       self.primary_selection_method = SelectionMethod.Max
-      self.secondary_selection_method = SelectionMethod.Prob
+      self.secondary_selection_method = SelectionMethod.PowerProb
       self.previous_model_timestanp=""
       self.dataset_path = dataset_path
       
@@ -47,65 +55,69 @@ class SelfLearning(UrControl):
          # initialize
          self.dataset = {}
          ini_t = {}
-         json_file = open('./data/datasets/learning_time.json', mode="w")
+         json_file = open(self.ls_path + '/data/datasets/learning_time.json', mode="w")
          json.dump(ini_t, json_file, ensure_ascii=False)
          json_file.close()
 
       self.train = Train(
+         dataset_path=self.dataset_path,
+         ls_path=self.ls_path,
          image_format="png",
-         dataset_path=self.dataset_path
       )
 
    def manipulate(self):
       data = {}
       time_data = {}
+      img_type = "depth"
 
-      while self.episode < 12000:
+      while self.episode < self.total_episodes:
          start = time.time()
          print(self.episode)
-         if self.episode < 200:
+         if self.episode < self.random:
             method = SelectionMethod.Random
+            # method = "oracle"
          else:
             method = self.primary_selection_method if np.random.rand() > self.percentage_secondary else self.secondary_selection_method
+         # method = "oracle"
 
-            
-         # TODO: get camera images
-
-         # grasp images
-         grasp_imgs = UrControl.gcamp.get_link_pose()
-         cv2.imwrite("./learning_scripts/data/img/depth_"+ self.image_states[0] + str(self.episode) + '.png', grasp_imgs)
+         # take a before grasped image
+         self.go_default_pose("forward")
+         grasp_img, camera_pose_g, depth_info_g = self.take_images(img_type, self.min, self.max)
+         cv2.imwrite(self.ls_path + '/data/img/' + img_type + '_grasp' + str(self.episode) + '.png', grasp_img)
 
          # goal images
-         dir = "./data/obj_info/obj_info.json"
-         with open(dir, mode="rt", encoding="utf-8") as f:
-            obj_infos = json.load(f)
-         img_num = np.random.randint(1, 10, 1)
-         img_name = "rec_goal" if obj_infos["0"]["form"] == "rectangle" else "cir_goal"
-         goal_img = cv2.imread("./data/goal/" + img_name + str(img_num[0]) + ".png", cv2.IMREAD_UNCHANGED)
+         num = 0
+         step = 0
+         goal_img = cv2.imread(self.ls_path + '/data/goal/depth_goal' + str(num) + str(step) + '.png', cv2.IMREAD_UNCHANGED)
 
-         # place_b images
-         place_b_imgs = self.plot_env(episode = self.episode, num_obj = 0, image_state = self.image_states[1])
-         actions = self.inference.infer(grasp_imgs[1], goal_img, method, place_images=place_b_imgs[1])
-         # TODO: planning grasp_trajectry
+         # take a before placed image
+         self.go_default_pose("backward")
+         place_b_img, camera_pose_pb, depth_info_pb = self.take_images(img_type, self.min, self.max)
+         cv2.imwrite(self.ls_path + '/data/img/' + img_type + '_place_b' + str(self.episode) + '.png', place_b_img)
+         actions = self.inference.infer(grasp_img, goal_img, method, place_images=place_b_img)
+
+         # grasp action
+         pose = self.pixel_to_coordinate(grasp_img, actions["grasp"]["pose"], camera_pose_g, depth_info_g, self.min, self.max)
+         can_pick = self.pick(pose)
 
          reward = 0
-         for obj_info in obj_infos:
-            grasp_execute = self.grasp_decision.is_cheked_grasping(actions["grasp"], obj_infos[str(obj_info)])
-            if grasp_execute:
-               place_obj_info = obj_infos[str(obj_info)]
-               reward = 1
-               break
+         if can_pick:
+            reward = 1
          actions["grasp"]["reward"] = reward
 
-         if grasp_execute:
-            # TODO:planning place_trajectry
-            place_a_imgs = self.plot_env(episode = self.episode, num_obj = 1, image_state = self.image_states[3], action=actions["place"]["pose"], obj_info = place_obj_info)
-            reward = 1
-            print(" #### place_success #### ")
+         if can_pick:
+            # place action
+            pose = self.pixel_to_coordinate(place_b_img, actions["place"]["pose"], camera_pose_pb, depth_info_pb, self.min, self.max)
+            can_execute = self.place(pose)
+            reward = 1 
          else:
-            place_a_imgs = self.plot_env(episode = self.episode, num_obj = 0, image_state = self.image_states[3])
             reward = 0
          actions["place"]["reward"] = reward
+
+         # take a after placed image
+         self.go_default_pose("backward")
+         place_a_img, _, _ = self.take_images(img_type, self.min, self.max)
+         cv2.imwrite(self.ls_path + '/data/img/' + img_type + '_' + str(self.episode) + '.png', place_a_img)
          
          # save data
          self.dataset[str(self.episode)] = actions
@@ -114,19 +126,26 @@ class SelfLearning(UrControl):
          json_file.close()
 
          # learning
-         if self.episode > 10:
+         if self.episode > self.random:
             self.load_train_model = True
          i_time = time.time() - start
-         
+         # init
+         if self.episode % 100 == 0:
+            self.train = Train(
+               dataset_path=self.dataset_path,
+               ls_path=self.ls_path,
+               image_format="png",
+            )
+
          start = time.time()
-         if self.episode > 5:
+         if self.episode > self.random - 1:
             self.train.run(self.load_train_model)
 
          l_time = time.time() - start
 
          t_data = [i_time, l_time]
          time_data[str(self.episode)] = t_data
-         json_file = open('./data/datasets/main_time.json', mode="w")
+         json_file = open(self.ls_path + '/data/datasets/main_time.json', mode="w")
          json.dump(time_data, json_file, ensure_ascii=False)
          json_file.close()
 
@@ -141,7 +160,7 @@ class SelfLearning(UrControl):
 
 parser = argparse.ArgumentParser(description='Training pipeline for pick-and-place.')
 parser.add_argument('-e', '--previous_experience', help='Using previous experience', action='store_true')
-parser.add_argument('-p', '--dataset_path', action='store', type=str, default='./data/datasets/datasets.json')
+parser.add_argument('-p', '--dataset_path', action='store', type=str, default='/root/catkin_ws/src/ur3e_hande_real/ur_control_scripts/src/learning_scripts/data/datasets/datasets.json')
 parser.add_argument('-m', '--percentage_secondary_method', action='store', type=float, default=0.)
 args = parser.parse_args()
 

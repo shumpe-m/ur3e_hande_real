@@ -1,0 +1,1 @@
+The directory saves before grasped and placed images and after placed images.

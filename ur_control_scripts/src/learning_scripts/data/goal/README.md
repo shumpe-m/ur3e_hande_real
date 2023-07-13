@@ -1,0 +1,1 @@
+The directory saves goal images.

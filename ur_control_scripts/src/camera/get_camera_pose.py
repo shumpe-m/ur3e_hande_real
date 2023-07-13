@@ -111,6 +111,5 @@ class GetDepthInfo():
             pass
         depth_info = np.array(list(self.depthInfo.K))
         depth_info = np.reshape(depth_info, [3, 3])
-        print(depth_info)
 
         return depth_info

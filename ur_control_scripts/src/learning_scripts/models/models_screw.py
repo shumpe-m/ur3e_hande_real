@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.layers import ConvBlock, ConvBlockRemoveWeightNorm, LinearBlock, LinearBlockRemoveWeightNorm
+from learning_scripts.models.layers import ConvBlock, ConvBlockRemoveWeightNorm, LinearBlock, LinearBlockRemoveWeightNorm
 
 class GraspModel(nn.Module):
     def __init__(self, in_channels):

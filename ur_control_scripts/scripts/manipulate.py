@@ -4,23 +4,23 @@ from __future__ import print_function
 import sys
 import time
 import copy
-import math
 import rospy
-import numpy as np
 import datetime
+
+import math
+import numpy as np
 from pathlib import Path
-
-from ur_control_moveit import arm, ur_gripper_controller, ft_sensor
-from motion_capture.get_object_pose import GetChikuwaPose, GetShrimpPose, GetEggplantPose, GetGreenPapperPose, GetJigPose
-from camera import get_camera_pose
-from utils import transformations, random_pose, state_plot
-
-import geometry_msgs.msg
-
 import matplotlib.pyplot as plt
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
 import seaborn as sns
+
+import geometry_msgs.msg
+from ur_control_moveit import arm, ur_gripper_controller, ft_sensor, ur_ros
+from motion_capture.get_object_pose import GetChikuwaPose, GetShrimpPose, GetEggplantPose, GetGreenPapperPose, GetJigPose
+from camera import get_camera_pose
+from utils import transformations, random_pose, state_plot
+
 
 class UrControl(object):
     def __init__(self):
@@ -30,6 +30,7 @@ class UrControl(object):
         self.gripper_control = ur_gripper_controller.GripperController()
         self.rp = random_pose.RandomPose()
         self.ft = ft_sensor.FtMessage()
+        self.ur_ros = ur_ros.URRos()
         # object pose class
         self.gcp = GetChikuwaPose()
         self.gsp = GetShrimpPose()
@@ -38,6 +39,9 @@ class UrControl(object):
         self.gjp = GetJigPose()
         # self.gcamp = GetCameraPose()
         self.gcamp = get_camera_pose.GetCameraPose()
+        self.gdi = get_camera_pose.GetDepthImg()
+        self.gci = get_camera_pose.GetColorImg()
+        self.gdinfo = get_camera_pose.GetDepthInfo()
         # utils
         self.trf = transformations.Transformations()
         self.plot = state_plot.PlotPose()
@@ -50,8 +54,8 @@ class UrControl(object):
         self.forward_basic_anguler = [3.14, 0, -1.57]
         self.backward_basic_anguler = [3.14, 0, -1.57]
 
-        # self.gripper_control.rq_reset()
-        # self.gripper_control.rq_activate()
+        self.gripper_control.rq_reset()
+        self.gripper_control.rq_activate()
         self.gripper_control.rq_init_gripper(speed=180, force=1)
 
         self.obj_name = ["Chikuwa", "Shrimp", "Eggplant", "Green_papper"]
@@ -65,17 +69,20 @@ class UrControl(object):
 
         self.ft.reset_ftsensor()
 
+        self.bridge = CvBridge()
+
     def go_default_pose(self, area = ""):
-        if area == "forwrad":
+        if area == "forward":
             base_joint = self.forward_basic_joint
-        elif area == "backwrad":
+        elif area == "backward":
             base_joint = self.backward_basic_joint
         else:
             base_joint = self.mid_basic_joint
         self.arm_control.go_to_joint_state(base_joint)
+        self.unlock_safety()
 
 
-    def pick(self, g_pose, gr_width = 120):
+    def pick(self, g_pose, gr_width = 0):
         # Initialization value
         can_pick = False
         can_execute = False
@@ -83,16 +90,17 @@ class UrControl(object):
         above_pose.position.z = 0.1
         e = self.trf.quaternion_to_euler(quaternion = g_pose.orientation)
         e = self.normalize_angles(e)
+        self.gripper_control.rq_gripper_move_to(gr_width)
 
         # Change the default pose of the robot according to the sign of y. And add offset.
         if g_pose.position.y > 0:
-            area = "forwrad"
+            area = "forward"
             base_e = self.forward_basic_anguler
             g_pose.position.z += 0.01 # mocap offset
             # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
             # q = self.trf.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
         else:
-            area = "backwrad"
+            area = "backward"
             base_e = self.backward_basic_anguler
             # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
             # q = self.trf.euler_to_quaternion(euler = [e[0] + base_e[0], -e[1] + base_e[1], -e[2] + base_e[2]])
@@ -114,6 +122,7 @@ class UrControl(object):
             self.gripper_control.rq_gripper_move_to(250)
             rospy.sleep(0.2)
             gr_state = self.gripper_control.rq_gripper_position()
+            print(gr_state)
             can_pick = True if gr_state < 240 else False
 
             # Lift the target object slightly.
@@ -131,6 +140,7 @@ class UrControl(object):
         elif can_pick == False:
             print("picking failed")
 
+        self.unlock_safety()
 
         return can_execute and can_pick
 
@@ -145,14 +155,14 @@ class UrControl(object):
         
         # Change the default pose of the robot according to the sign of y. And add offset.
         if g_pose.position.y > 0:
-            area = "forwrad"
+            area = "forward"
             base_e = self.forward_basic_anguler
             # offset
             g_pose.position.z += 0.01 + offset
             # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
             # q = self.trf.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
         else:
-            area = "backwrad"
+            area = "backward"
             base_e = self.backward_basic_anguler
             # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
             # q = self.trf.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
@@ -186,6 +196,8 @@ class UrControl(object):
             print("pose : \n", g_pose)
             print("degree : \n", list(self.trf.quaternion_to_euler(quaternion = q)))
 
+        self.unlock_safety()
+        
         return can_execute
     
     def mocap_pick_and_place(self):
@@ -254,9 +266,9 @@ class UrControl(object):
         self.gripper_control.rq_gripper_move_to(100)
         self.pick(dish_pose, 240)
         
-        area = "forwrad" if dish_pose.position.y > 0 else "backwrad"
+        area = "forward" if dish_pose.position.y > 0 else "backward"
         self.go_default_pose(area)
-        if area == "forwrad":
+        if area == "forward":
             reset_pose = [0.13, 0.38, 0.26]
             replace_pose = [-0.105, -0.35, 0.035]
             q = self.trf.euler_to_quaternion(euler = [3.14, 0, 1.57])
@@ -284,6 +296,49 @@ class UrControl(object):
         self.place(dish_pose, 0.015)
         self.gripper_control.rq_gripper_move_to(0)
         
+    def unlock_safety(self):
+        safety_mode = self.ur_ros.get_safetymsg()
+        if safety_mode == 3:
+            self.ur_ros.unlock_safety
+    
+    def take_images(self, img_type="depth", min=0., max=1.):
+        rospy.sleep(0.05)
+        camera_pose = self.gcamp.get_link_pose()
+        depth_info = self.gdinfo.get_depth_info()
+        if img_type=="depth":
+            depth = self.gdi.get_depth()
+            img = self.bridge.imgmsg_to_cv2(depth, 'passthrough')
+        else:
+            rgb = self.gci.get_rgb()
+            img = self.bridge.imgmsg_to_cv2(rgb, 'rgb8')
+        img = np.array(img, dtype=np.uint16)
+        img = img.clip(min * 1000, max * 1000) - min * 1000
+        img = img * 255 / ((max - min) * 1000)
+
+        return img.astype(np.uint8), camera_pose, depth_info
+    
+    def pixel_to_coordinate(self, img, action, camera_pose, depth_info, min=0., max=1.):
+        ee_pose = camera_pose
+        k = depth_info
+        k_inv = np.linalg.inv(k)
+        u = action[0]
+        v = action[1]
+        z = (img[int(v), int(u)] * ((max - min) * 1000) / 255 + min * 1000) * 0.001
+        uvw = np.array([u, v, 1]) * z
+        print(z)
+        xyz = np.dot(k_inv, uvw)
+
+        q = self.trf.euler_to_quaternion(euler = [3.14, 0, -np.pi*1.5 + action[2]])
+        ee_pose.pose.position.x += xyz[0]
+        ee_pose.pose.position.y -= xyz[1]
+        ee_pose.pose.position.z = -(z - camera_pose.pose.position.z)
+        print(ee_pose.pose.position.z )
+        ee_pose.pose.orientation.x = q[0]
+        ee_pose.pose.orientation.y = q[1]
+        ee_pose.pose.orientation.z = q[2]
+        ee_pose.pose.orientation.w = q[3]
+        
+        return ee_pose.pose
 
     def test(self):
         # gpc = get_camera_pose.GetPointCloud()
@@ -595,7 +650,7 @@ class UrControl(object):
 def main():
     try:
         action = UrControl()
-        action.go_default_pose(area="forwrad")
+        action.go_default_pose(area="forward")
 
 
         # action.mocap_pick_and_place()

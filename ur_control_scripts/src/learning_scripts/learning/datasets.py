@@ -1,9 +1,11 @@
+import copy
+import pickle
+import yaml
+
 import cv2
 from loguru import logger
 import numpy as np
-import copy
 import random
-import pickle
 
 import torch
 from torch.utils.data import Dataset
@@ -12,10 +14,14 @@ from learning_scripts.utils.image import  get_area_of_interest_new
 
 
 class CustomDataset():
-   def __init__(self, episodes, seed=None):
+   def __init__(self, episodes, seed=None, ls_path=None):
       super().__init__()
+      self.ls_path = ls_path
+      with open(self.ls_path + '/config/config.yml', 'r') as yml:
+         config = yaml.safe_load(yml)
+      self.img_type = "depth"
       self.keys = list(episodes.keys())
-      self.keys = self.keys[-13000:]
+      self.keys = self.keys[-3000:]
       self.episodes_place_success_index = []
       self.episodes = {}
       for key in self.keys:
@@ -23,12 +29,10 @@ class CustomDataset():
          if self.episodes[key]['place']['reward'] > 0:
             self.episodes_place_success_index.append(self.keys.index(key))
 
-
-
-      self.size_input = (480, 752)
+      self.size_input = (config["inference"]["img_width"], config["inference"]["img_height"])
       self.size_memory_scale = 4
-      self.size_cropped = (200, 200)
-      self.size_result = (32, 32)
+      self.size_cropped = (config["inference"]["size_original_cropped"], config["inference"]["size_original_cropped"])
+      self.size_result = (config["inference"]["size_output"], config["inference"]["size_output"])
 
       self.size_cropped_area = (self.size_cropped[0] // self.size_memory_scale, self.size_cropped[1] // self.size_memory_scale)
 
@@ -46,19 +50,14 @@ class CustomDataset():
       self.different_object_images = 4  # Only if place reward > 0
       self.different_jittered_object_images = 0  # Only if place reward > 0
 
-      self.box_distance = 0.281  # [m]
-
    #   self.indexer = GraspIndexer([0.05, 0.07, 0.086])  # [m]
       self.indexer = ([0.025, 0.05, 0.07, 0.086])  # [m]
-
-      self.img_type = "depth"
-
 
       self.seed = seed
       self.random_gen = np.random.RandomState(seed)
 
    def load_image(self, episode_id, action_id):
-      image = cv2.imread("./data/img/" + self.img_type + "_" + action_id + str(episode_id) + ".png", cv2.IMREAD_UNCHANGED)
+      image = cv2.imread(self.ls_path + "/data/img/" + self.img_type + "_" + action_id + str(episode_id) + ".png", cv2.IMREAD_UNCHANGED)
       image = cv2.resize(image, (self.size_input[0] // self.size_memory_scale, self.size_input[1] // self.size_memory_scale))
       return image
 
@@ -103,7 +102,7 @@ class CustomDataset():
       grasp_before = self.load_image(index, 'grasp')
       grasp_before_area = self.area_of_interest(grasp_before, grasp['pose'])
       # TODO: grasp width
-      grasp_index = 1
+      grasp_index = grasp['index']
 
       # Only single grasp
       if len(e) == 1:
@@ -225,8 +224,6 @@ class CustomDataset():
       return r
 
    def get_data(self, data):
-      while len(data) > 20000:
-         data.pop(0)
 
       if len(data) == 0:
          for key in self.keys:
@@ -238,5 +235,8 @@ class CustomDataset():
          r = self.torch_generator(self.keys[-1])
          for b_dx in range(r[0].shape[0]):
             data.append(((r[0][b_dx], r[1][b_dx], r[2][b_dx]), (r[3][b_dx], r[4][b_dx], r[5][b_dx])))
+
+      while len(data) > 20000:
+         data.pop(0)
 
       return data

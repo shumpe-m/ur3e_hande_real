@@ -20,9 +20,16 @@ class Split:
 class Losses:
     def __init__(self, device):
         self.device = device
+        self.weight = torch.tensor([1.0, 1.0, 4.0]).to(self.device)
 
     def binary_crossentropy(self, y_pred, y_true):
         value_true, value_pred, sample_weight = Split.single_class_split(y_pred, y_true, self.device)
 
         loss = torch.nn.BCELoss(weight = sample_weight)
+        return loss(value_pred, value_true)
+
+    def test_binary_crossentropy(self, y_pred, y_true):
+        value_true, value_pred, _ = Split.single_class_split(y_pred, y_true, self.device)
+
+        loss = torch.nn.BCELoss(weight = self.weight)
         return loss(value_pred, value_true)

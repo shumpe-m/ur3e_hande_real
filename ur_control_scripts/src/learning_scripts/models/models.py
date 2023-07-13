@@ -20,7 +20,7 @@ class GraspModel(nn.Module):
    
       self.conv_block_r5 = ConvBlock(in_channels = 64, out_channels = 64)
       self.conv_block_r6 = ConvBlock(in_channels = 64, out_channels = 48, kernel_size = 2)
-      self.conv_block_r_last = nn.Conv2d(in_channels = 48, out_channels = 4, kernel_size = 1, stride = 1)
+      self.conv_block_r_last = nn.Conv2d(in_channels = 48, out_channels = 3, kernel_size = 1, stride = 1)
 
       self.conv_block_z1 = ConvBlock(in_channels = 32, out_channels = 64)
       self.conv_block_z2 = ConvBlock(in_channels = 64, out_channels = 64)

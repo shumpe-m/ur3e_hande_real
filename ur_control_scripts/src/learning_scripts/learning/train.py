@@ -44,7 +44,7 @@ class Train:
       start = time.time()
       with open(self.dataset_path, mode="rt", encoding="utf-8") as f:
          all_data = json.load(f)
-      custom_ds = CustomDataset(all_data, seed=42)
+      custom_ds = CustomDataset(all_data, ls_path=self.ls_path, seed=42)
       datasets = custom_ds.get_data(self.dataset_tensor)
       datasets_length = len(datasets)
       val_data_length = int(datasets_length * self.percent_validation_set)
@@ -181,3 +181,13 @@ class Train:
 
       test_loss /= size
       print(f"Avg loss: {test_loss:>8f}")
+
+
+if __name__ == '__main__':
+   train = Train(
+      dataset_path='/root/learning_data/data/datasets/datasets.json',
+      ls_path="/root/learning_data",
+      image_format="png",
+   )
+
+   train.run(False)

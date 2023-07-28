@@ -154,9 +154,9 @@ def main():
         setup = RvizSetup("arm")
         # setup.add_box(name = "FAKE", pose = [3, 3, 0.05], size = [0.1, 0.1, 0.1])
         table_length = [0.9, 1.5]
-        z_offset = -0.105
+        z_offset = -0.105 + 0.005
 
-        setup.add_box(name = "base_box_1", pose = [0, 0, 0.0525 + z_offset], size = [table_length[0], 0.21, 0.104])
+        setup.add_box(name = "base_box_1", pose = [0, 0, 0.0525 + z_offset - 0.005], size = [table_length[0], 0.21, 0.104])
         setup.add_box(name = "base_box_2", pose = [(table_length[0] - 0.125) / 2, 0, 0.0525 + z_offset], size = [0.125, 0.4, 0.104])
         setup.add_box(name = "base_box_3", pose = [-(table_length[0] - 0.125) / 2, 0, 0.0525 + z_offset], size = [0.125, 0.4, 0.104])
         setup.add_box(name = "table", pose = [0, 0, 0 + z_offset], size = [table_length[0], table_length[1], 0.01])

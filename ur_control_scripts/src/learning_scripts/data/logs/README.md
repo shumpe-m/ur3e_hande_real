@@ -1,2 +1,1 @@
-The directory saves log
-
+The directory saves logs.

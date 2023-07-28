@@ -68,6 +68,8 @@ class UrControl(object):
         self.total_target_state = np.array([])
 
         self.ft.reset_ftsensor()
+        self.ur_ros.play()
+        rospy.sleep(2.)
 
         self.bridge = CvBridge()
 
@@ -79,13 +81,17 @@ class UrControl(object):
         else:
             base_joint = self.mid_basic_joint
         self.arm_control.go_to_joint_state(base_joint)
-        self.unlock_safety()
+        lock = self.unlock_safety()
+
+        return lock
 
 
     def pick(self, g_pose, gr_width = 0):
         # Initialization value
+        self.ft.reset_ftsensor()
         can_pick = False
         can_execute = False
+        collision_detection = False
         above_pose = copy.deepcopy(g_pose)
         above_pose.position.z = 0.1
         e = self.trf.quaternion_to_euler(quaternion = g_pose.orientation)
@@ -96,41 +102,44 @@ class UrControl(object):
         if g_pose.position.y > 0:
             area = "forward"
             base_e = self.forward_basic_anguler
-            g_pose.position.z += 0.01 # mocap offset
-            # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
-            # q = self.trf.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
+            # g_pose.position.z += 0.01 # mocap offset
+            g_pose.position.z -= 0.01 # realsense offset
+
         else:
             area = "backward"
             base_e = self.backward_basic_anguler
-            # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
-            # q = self.trf.euler_to_quaternion(euler = [e[0] + base_e[0], -e[1] + base_e[1], -e[2] + base_e[2]])
+            g_pose.position.z -= 0.01 # realsense offset
+
         self.go_default_pose(area)
+        if g_pose.position.z <= -0.0851:
+            g_pose.position.z = -0.084
+            
 
         # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
         q = self.trf.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
-        can_execute = self.arm_control.go_to_pose(pose = above_pose, ori = q, vel_scale = 0.5)
+        can_execute, _ = self.arm_control.go_to_pose(pose = above_pose, ori = q, vel_scale = 0.55)
         if can_execute:
             # Move over the target object.
             g_pose.position.z += 0.04
-            can_execute = self.arm_control.go_to_pose(pose = g_pose, ori = q, vel_scale = 0.35)
+            can_execute, collision_detection = self.arm_control.go_to_pose(pose = g_pose, ori = q, vel_scale = 0.4)
 
             # Moves to the position of the target object.
             g_pose.position.z -= 0.04
-            can_execute = self.arm_control.go_to_pose(pose = g_pose, ori = q, vel_scale = 0.04) if can_execute else False
+            can_execute, _ = self.arm_control.go_to_pose(pose = g_pose, ori = q, vel_scale = 0.015) if can_execute else False, False
 
             # Close the gripper.
             self.gripper_control.rq_gripper_move_to(250)
             rospy.sleep(0.2)
             gr_state = self.gripper_control.rq_gripper_position()
-            print(gr_state)
+            # print(gr_state)
             can_pick = True if gr_state < 240 else False
 
             # Lift the target object slightly.
-            g_pose.position.z += 0.03
-            can_execute = self.arm_control.go_to_pose(pose = g_pose, ori = q, vel_scale = 0.35) if can_execute else False
+            g_pose.position.z += 0.05
+            can_execute, _ = self.arm_control.go_to_pose(pose = g_pose, ori = q, vel_scale = 0.4) if can_execute else False, False
 
             # Lift the target object.
-            can_execute = self.arm_control.go_to_pose(pose = above_pose, ori = q, vel_scale = 0.35) if can_execute else False
+            can_execute, _ = self.arm_control.go_to_pose(pose = above_pose, ori = q, vel_scale = 0.4) if can_execute else False, False
 
         self.go_default_pose(area)
         if can_execute == False:
@@ -140,12 +149,13 @@ class UrControl(object):
         elif can_pick == False:
             print("picking failed")
 
-        self.unlock_safety()
+        lock = self.unlock_safety()
 
-        return can_execute and can_pick
+        return can_execute and can_pick, lock, collision_detection
 
     def place(self, goal_pose, offset = 0):
         # Initialization value
+        self.ft.reset_ftsensor()
         can_execute = False
         g_pose = copy.deepcopy(goal_pose)
         above_pose = copy.deepcopy(goal_pose)
@@ -158,29 +168,30 @@ class UrControl(object):
             area = "forward"
             base_e = self.forward_basic_anguler
             # offset
-            g_pose.position.z += 0.01 + offset
-            # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
-            # q = self.trf.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
+            # g_pose.position.z += 0.01 + offset # mocap offset
+            g_pose.position.z += 0.01 + offset # realsense offset
+
         else:
             area = "backward"
             base_e = self.backward_basic_anguler
-            # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
-            # q = self.trf.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
             # offset
-            g_pose.position.z += offset
+            # g_pose.position.z += offset # mocap offset
+            g_pose.position.z += 0.01 + offset # realsense offset
         self.go_default_pose(area)
+        if g_pose.position.z <= -0.0851:
+            g_pose.position.z = -0.084 + 0.001
 
         # Conversion to Euler angles to match the base attitude (base_e) and object attitude.
         q = self.trf.euler_to_quaternion(euler = [-e[0] + base_e[0], e[1] + base_e[1], -e[2] + base_e[2]])
-        can_execute = self.arm_control.go_to_pose(pose = above_pose, ori = q, vel_scale = 0.5)
+        can_execute, _ = self.arm_control.go_to_pose(pose = above_pose, ori = q, vel_scale = 0.55)
         if can_execute:
             # Move over the target object.
             g_pose.position.z += 0.04
-            can_execute = self.arm_control.go_to_pose(pose = g_pose, ori = q, vel_scale = 0.35)
+            can_execute, collision_detection = self.arm_control.go_to_pose(pose = g_pose, ori = q, vel_scale = 0.4)
 
             # Moves to the position of the target object.
             g_pose.position.z -= 0.04
-            can_execute = self.arm_control.go_to_pose(pose = g_pose, ori = q, vel_scale = 0.04) if can_execute else False
+            can_execute, _ = self.arm_control.go_to_pose(pose = g_pose, ori = q, vel_scale = 0.018) if can_execute else False, False
 
             # Open the gripper.
             gr_state = self.gripper_control.rq_gripper_position()
@@ -188,17 +199,18 @@ class UrControl(object):
             rospy.sleep(0.3)
 
             # Lift the arm.
-            can_execute = self.arm_control.go_to_pose(pose = above_pose, ori = q, vel_scale = 0.35) if can_execute else False
+            can_execute, _ = self.arm_control.go_to_pose(pose = above_pose, ori = q, vel_scale = 0.4) if can_execute else False, False
 
         self.go_default_pose(area)
         if can_execute == False:
             print("No plan")
             print("pose : \n", g_pose)
             print("degree : \n", list(self.trf.quaternion_to_euler(quaternion = q)))
+            # self.gripper_control.rq_gripper_move_to(255)
 
-        self.unlock_safety()
+        lock = self.unlock_safety()
         
-        return can_execute
+        return can_execute, lock
     
     def mocap_pick_and_place(self):
         self.set_goal_pose()
@@ -297,9 +309,15 @@ class UrControl(object):
         self.gripper_control.rq_gripper_move_to(0)
         
     def unlock_safety(self):
+        lock = False
         safety_mode = self.ur_ros.get_safetymsg()
-        if safety_mode == 3:
-            self.ur_ros.unlock_safety
+        if str(safety_mode)=="mode: 3":
+            lock = True
+            self.arm_control.clear_targets
+            self.ur_ros.unlock_safety()
+            self.arm_control.safe_action()
+
+        return lock
     
     def take_images(self, img_type="depth", min=0., max=1.):
         rospy.sleep(0.05)
@@ -308,31 +326,41 @@ class UrControl(object):
         if img_type=="depth":
             depth = self.gdi.get_depth()
             img = self.bridge.imgmsg_to_cv2(depth, 'passthrough')
+            img = np.array(img, dtype=np.uint16)
+            img = img.clip(min * 1000, max * 1000) - min * 1000
+            img = img * 255 / ((max - min) * 1000)
+            img = 255 - img
+            img = np.where(img == 255, 0, img)
         else:
             rgb = self.gci.get_rgb()
             img = self.bridge.imgmsg_to_cv2(rgb, 'rgb8')
-        img = np.array(img, dtype=np.uint16)
-        img = img.clip(min * 1000, max * 1000) - min * 1000
-        img = img * 255 / ((max - min) * 1000)
 
         return img.astype(np.uint8), camera_pose, depth_info
     
-    def pixel_to_coordinate(self, img, action, camera_pose, depth_info, min=0., max=1.):
+    def pixel_to_coordinate(self, img, action, camera_pose, depth_info, min=0., max=1., action_area="forward"):
         ee_pose = camera_pose
         k = depth_info
         k_inv = np.linalg.inv(k)
         u = action[0]
         v = action[1]
-        z = (img[int(v), int(u)] * ((max - min) * 1000) / 255 + min * 1000) * 0.001
+        z = ((255 - img[int(v), int(u)]) * ((max - min) * 1000) / 255 + min * 1000) * 0.001
+        # print(z, camera_pose.pose.position.z)
         uvw = np.array([u, v, 1]) * z
-        print(z)
+        # print(z)
         xyz = np.dot(k_inv, uvw)
 
         q = self.trf.euler_to_quaternion(euler = [3.14, 0, -np.pi*1.5 + action[2]])
-        ee_pose.pose.position.x += xyz[0]
-        ee_pose.pose.position.y -= xyz[1]
-        ee_pose.pose.position.z = -(z - camera_pose.pose.position.z)
-        print(ee_pose.pose.position.z )
+        if action_area == "forward":
+            ee_pose.pose.position.x += xyz[0]
+            ee_pose.pose.position.y -= xyz[1]
+            ee_pose.pose.position.z = -(z - camera_pose.pose.position.z)
+        elif action_area == "backward":
+            ee_pose.pose.position.x -= xyz[0]
+            ee_pose.pose.position.y += xyz[1]
+            ee_pose.pose.position.z = -(z - camera_pose.pose.position.z)
+        else:
+            print("area is wrong.")
+        # print(ee_pose.pose.position.z )
         ee_pose.pose.orientation.x = q[0]
         ee_pose.pose.orientation.y = q[1]
         ee_pose.pose.orientation.z = q[2]

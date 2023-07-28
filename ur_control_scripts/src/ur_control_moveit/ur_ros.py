@@ -29,5 +29,6 @@ class URRos():
       return self.safetymsg
 
    def unlock_safety(self):
-      self.unlock_protective_stop
-      self.play
+      self.unlock_protective_stop()
+      rospy.sleep(0.4)
+      self.play()

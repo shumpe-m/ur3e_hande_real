@@ -1,0 +1,1 @@
+The directory saves robot actions, reward and etc.

@@ -15,7 +15,7 @@ from learning_scripts.models.models import GraspModel, PlaceModel, MergeModel
 
 
 class Inference(InferenceUtils):
-   def __init__(self, lower_random_pose=[0., 0., -1.484], upper_random_pose=[480., 752., 1.484], ls_path=None):
+   def __init__(self, lower_random_pose=[0., 0., -3.1415 / 2], upper_random_pose=[480., 752., 3.1415 / 2], ls_path=None):
       super(Inference, self).__init__(
          lower_random_pose=lower_random_pose,
          upper_random_pose=upper_random_pose,
@@ -61,14 +61,14 @@ class Inference(InferenceUtils):
       place_action = {}
       if method == SelectionMethod.Random:
          grasp_action["index"] = int(np.random.choice(range(1)))
-         grasp_action["pose"] = [np.random.uniform(self.lower_random_pose[0], self.upper_random_pose[0]),  # [m]
-                                 np.random.uniform(self.lower_random_pose[1], self.upper_random_pose[1]),  # [m]
+         grasp_action["pose"] = [int(np.random.uniform(self.lower_random_pose[0]+150, self.upper_random_pose[0]-150)),  # [m]
+                                 int(np.random.uniform(self.lower_random_pose[1]+150, self.upper_random_pose[1]-150)),  # [m]
                                  np.random.uniform(self.lower_random_pose[2], self.upper_random_pose[2])] 
          grasp_action["step"] = 0
 
          place_action["index"] = int(np.random.choice(range(3)))
-         place_action["pose"] = [np.random.uniform(self.lower_random_pose[0], self.upper_random_pose[0]),  # [m]
-                                 np.random.uniform(self.lower_random_pose[1], self.upper_random_pose[1]),  # [m]
+         place_action["pose"] = [int(np.random.uniform(self.lower_random_pose[0]+150, self.upper_random_pose[0]-150)),  # [m]
+                                 int(np.random.uniform(self.lower_random_pose[1]+150, self.upper_random_pose[1]-150)),  # [m]
                                  np.random.uniform(self.lower_random_pose[2], self.upper_random_pose[2])]  # [rad]
          place_action["step"] = 0
 
@@ -78,25 +78,35 @@ class Inference(InferenceUtils):
          return actions
 
       elif method == "oracle":
-         dir = self.ls_path + "/data/obj_info/obj_info.json"
-         with open(dir, mode="rt", encoding="utf-8") as f:
-            obj_infos = json.load(f)
-         keys = list(obj_infos.keys())
-         obj_info = obj_infos[keys[-1]]
-         pose = obj_info["center_psoe"]
-         pose[0] += int(np.random.normal(0, 10, 1))
-         pose[1] += int(np.random.normal(0, 10, 1))
-         if isinstance(obj_info["angle"], type(None)):
-            pose.append(np.random.normal(0, math.pi/4, 1)[0])
+         img_index = np.where((images > 8) & (images < 254))
+         if len(img_index[0]) != 0:
+            pose = [int(np.random.choice(img_index[1], 1)[0].astype(np.int32)), int(np.random.choice(img_index[0], 1)[0])]
          else:
-            pose.append(obj_info["angle"] + np.random.normal(0, math.pi/6, 1)[0])
-         grasp_action["index"] = int(np.random.choice(range(3)))
+            print("random")
+            pose = [int(np.random.uniform(self.lower_random_pose[0]+100, self.upper_random_pose[0]-100)),  # [m]
+               int(np.random.uniform(self.lower_random_pose[1]+100, self.upper_random_pose[1]-100))]
+
+         a = np.random.normal(0, math.pi/4, 1)[0]
+         a_index = np.argmin(np.abs(np.array(self.a_space) - a))
+         pose.append(-self.a_space[a_index])
+         # pose.append(np.random.uniform(self.lower_random_pose[2], self.upper_random_pose[2]))
+
+
+         # noise = [int(np.random.normal(0, 5, 1)), int(np.random.normal(0, 5, 1))]
+         # pose[0] += noise[0] * math.cos(pose[2]) + noise[1] * math.sin(pose[2]) * -1
+         # pose[1] += noise[0] * math.sin(pose[2]) + noise[1] * math.cos(pose[2]) * -1
+      
+         grasp_action["index"] = int(np.random.choice(3, p=[1.0, 0., 0.]))
          grasp_action["pose"] = pose
          grasp_action["step"] = 0
 
-         place_action["index"] = int(np.random.choice(range(3)))
-         place_action["pose"] = [np.random.uniform(self.lower_random_pose[0], self.upper_random_pose[0]),  # [m]
-                                 np.random.uniform(self.lower_random_pose[1], self.upper_random_pose[1]),  # [m]
+         place_action["index"] = int(np.random.choice(range(1)))
+         # a_index = np.random.choice(range(len(self.a_space)))
+         # place_action["pose"] = [int(np.random.uniform(self.lower_random_pose[0]+150, self.upper_random_pose[0]-150)),  # [m]
+         #                         int(np.random.uniform(self.lower_random_pose[1]+150, self.upper_random_pose[1]-150)),  # [m]
+         #                         self.a_space[a_index]]  # [rad]
+         place_action["pose"] = [int(np.random.uniform(self.lower_random_pose[0]+150, self.upper_random_pose[0]-150)),  # [m]
+                                 int(np.random.uniform(self.lower_random_pose[1]+150, self.upper_random_pose[1]-150)),  # [m]
                                  np.random.uniform(self.lower_random_pose[2], self.upper_random_pose[2])]  # [rad]
          place_action["step"] = 0
 
@@ -175,8 +185,11 @@ class Inference(InferenceUtils):
       grasp_action["step"] = 0
 
 
-      place_action["index"] = int(g_index[3])
-      place_action["pose"] = self.pose_from_index(p_index, reward_p.shape, resolution_factor=1.0)
+      place_action["index"] = int(g_index[3]) + np.random.randint(-1,1)
+      # place_action["pose"] = self.pose_from_index(p_index, reward_p.shape, resolution_factor=1.0)
+      place_action["pose"] = [int(np.random.uniform(self.lower_random_pose[0]+150, self.upper_random_pose[0]-150)),  # [m]
+                                 int(np.random.uniform(self.lower_random_pose[1]+150, self.upper_random_pose[1]-150)),  # [m]
+                                 np.random.uniform(self.lower_random_pose[2], self.upper_random_pose[2])]  # [rad]
       place_action["estimated_reward"] = int(reward[index_unraveled])
       place_action["step"] = 0
    

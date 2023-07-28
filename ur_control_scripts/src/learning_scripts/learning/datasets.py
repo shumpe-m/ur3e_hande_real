@@ -21,7 +21,7 @@ class CustomDataset():
          config = yaml.safe_load(yml)
       self.img_type = "depth"
       self.keys = list(episodes.keys())
-      self.keys = self.keys[-3000:]
+      self.keys = self.keys[-2000:]
       self.episodes_place_success_index = []
       self.episodes = {}
       for key in self.keys:
@@ -73,18 +73,18 @@ class CustomDataset():
          return np.expand_dims(area, 2)
       return area
 
-   def jitter_pose(self, pose, scale_x=0.05, scale_y=0.05, scale_a=1.5, around=True):
+   def jitter_pose(self, pose, scale_x=30, scale_y=30, scale_a=1.5, around=True):
       new_pose = copy.deepcopy(pose)
 
       if around:
-         low = [np.minimum(0.001, scale_x), np.minimum(0.001, scale_y), np.minimum(0.06, scale_a)]
-         mode = [np.minimum(0.006, scale_x), np.minimum(0.006, scale_y), np.minimum(0.32, scale_a)]
-         high = [scale_x + 1e-6, scale_y + 1e-6, scale_a + 1e-6]
+         low = [np.minimum(1, scale_x), np.minimum(1, scale_y), np.minimum(0.06, scale_a)]
+         mode = [np.minimum(6, scale_x), np.minimum(6, scale_y), np.minimum(0.32, scale_a)]
+         high = [scale_x + 1, scale_y + 1, scale_a + 1]
          dx, dy, da = self.random_gen.choice([-1, 1], size=3) * self.random_gen.triangular(low, mode, high, size=3)
       else:
-         low = [-scale_x - 1e-6, -scale_y - 1e-6, -scale_a - 1e-6]
+         low = [-scale_x - 1, -scale_y - 1, -scale_a - 1]
          mode = [0.0, 0.0, 0.0]
-         high = [scale_x + 1e-6, scale_y + 1e-6, scale_a + 1e-6]
+         high = [scale_x + 1, scale_y + 1, scale_a + 1]
          dx, dy, da = self.random_gen.triangular(low, mode, high, size=3)
 
       new_pose[0] += np.cos(pose[2]) * dx - np.sin(pose[2]) * dy
@@ -167,7 +167,7 @@ class CustomDataset():
 
          if place['reward'] > 0:
                result += [
-                  generate_goal('after', place['pose'], jitter={'scale_x': 0.02, 'scale_y': 0.01, 'scale_a': 0.2})
+                  generate_goal('after', place['pose'], jitter={'scale_x': 15, 'scale_y': 8, 'scale_a': 0.2})
                   for _ in range(self.jittered_hindsight_x_images)
                ]
       #TODO some actions
@@ -184,7 +184,7 @@ class CustomDataset():
          g_suffix, g_suffix_before = random.choice([('v', 'v'), ('after', 'after'), ('v', 'after')])
          result.append(generate_goal(g_suffix, place['pose'], g_suffix_before=g_suffix_before, jitter={'around': False}))
       # TODO
-      if self.use_own_goal and 'ed-goal' in place:
+      if self.use_own_goal:
          result.append(generate_goal('goal', place['pose'], g_place_weight=0.2, g_merge_weight=0.7, g_index=index))
 
          result += [
@@ -236,7 +236,7 @@ class CustomDataset():
          for b_dx in range(r[0].shape[0]):
             data.append(((r[0][b_dx], r[1][b_dx], r[2][b_dx]), (r[3][b_dx], r[4][b_dx], r[5][b_dx])))
 
-      while len(data) > 20000:
+      while len(data) > 30000:
          data.pop(0)
 
       return data

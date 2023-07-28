@@ -107,6 +107,7 @@ class ArmControl(object):
         move_group = self.move_group
         move_group.set_max_velocity_scaling_factor(vel_scale)
         self.execute_thread_result = False
+        self.col_detection = False
         wpose = move_group.get_current_pose().pose
         current_pose = copy.deepcopy(wpose)
 
@@ -130,13 +131,13 @@ class ArmControl(object):
         execute_thread.start()
         collision_avoidance_thread.start()
         execute_thread.join()
-        rospy.sleep(0.3)
+        rospy.sleep(0.05)
         self.execute_thread_result = True
         collision_avoidance_thread.join()
         move_group.stop()
         move_group.clear_pose_targets()
 
-        return plan.joint_trajectory.header.frame_id!=[]
+        return plan.joint_trajectory.header.frame_id!=[], self.col_detection
 
 
     def go_to_pose(self, pose, ori = [0.0, 0.0, 0.0, 0.0], vel_scale = 0.2):
@@ -163,6 +164,7 @@ class ArmControl(object):
         move_group = self.move_group
         move_group.set_max_velocity_scaling_factor(vel_scale)
         self.execute_thread_result = False
+        self.col_detection = False
         wpose = move_group.get_current_pose().pose
 
         if type(pose) == geometry_msgs.msg._Pose.Pose:
@@ -193,13 +195,13 @@ class ArmControl(object):
         execute_thread.start()
         collision_avoidance_thread.start()
         execute_thread.join()
-        rospy.sleep(0.3)
+        rospy.sleep(0.05)
         self.execute_thread_result = True
         collision_avoidance_thread.join()
         move_group.stop()
         move_group.clear_pose_targets()
 
-        return plan.joint_trajectory.points!=[]
+        return plan.joint_trajectory.points!=[], self.col_detection
 
     def reset_move(self, pose, ori = [0.0, 0.0, 0.0, 0.0], vel_scale = 0.2):
         """
@@ -275,6 +277,7 @@ class ArmControl(object):
         move_group = self.move_group
         move_group.set_max_velocity_scaling_factor(vel_scale)
         self.execute_thread_result = False
+        self.col_detection = False
         wpose = move_group.get_current_pose().pose
         wpose.position = pose.position
         current_pose = copy.deepcopy(wpose)
@@ -297,13 +300,13 @@ class ArmControl(object):
         execute_thread.start()
         collision_avoidance_thread.start()
         execute_thread.join()
-        rospy.sleep(0.3)
+        rospy.sleep(0.05)
         self.execute_thread_result = True
         collision_avoidance_thread.join()
         move_group.stop()
         move_group.clear_pose_targets()
 
-        return plan.joint_trajectory.points!=[]
+        return plan.joint_trajectory.points!=[], self.col_detection
 
     def stop_action(self, collision_func):
         """
@@ -316,21 +319,33 @@ class ArmControl(object):
             Return value is a bool value Contact = True
 
         """
-        move_group = self.move_group
         while (not self.execute_thread_result):
             if collision_func():
-                move_group.stop()
-                move_group.clear_pose_targets()
-                wpose = move_group.get_current_pose().pose
-                wpose.position.z += 0.01
-                move_group.set_pose_target(wpose)
-
-                # Founding motion plan
-                plan_success, plan, planningtime, error_code = move_group.plan()
-                move_group.execute(plan, True)
-                move_group.stop()
-                move_group.clear_pose_targets()
+                self.safe_action()
+                self.col_detection = True
                 break
+    
+    def safe_action(self):
+        """
+        A function that stops and raises the operation depending.
+        """
+        self.move_group.stop()
+        self.move_group.clear_pose_targets()
+        wpose = self.move_group.get_current_pose().pose
+        wpose.position.z += 0.03
+        self.move_group.set_pose_target(wpose)
+        self.move_group.set_max_velocity_scaling_factor(0.2)
+
+        # Founding motion plan
+        plan_success, plan, planningtime, error_code = self.move_group.plan()
+        self.move_group.execute(plan, True)
+        self.move_group.stop()
+        self.move_group.clear_pose_targets()
+
+    def clear_targets(self):
+        self.move_group.stop()
+        self.move_group.clear_pose_targets()
+
 
     def get_current_pose(self, end_effector_link_name = "ur_gripper_tip_link"):
         """

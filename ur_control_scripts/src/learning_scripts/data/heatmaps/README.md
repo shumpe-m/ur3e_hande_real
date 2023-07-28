@@ -1,0 +1,1 @@
+The directory saves grasp and place heatmaps.

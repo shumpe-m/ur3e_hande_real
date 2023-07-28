@@ -37,7 +37,7 @@ def get_area_of_interest_new(
         scale=scale,
         cropped=size_cropped,
     )
-    mat_result = cv2.warpAffine(image, trans, size_final, flags=flags)  # INTERPOLATION_METHOD
+    mat_result = cv2.warpAffine(image, trans, size_final, borderMode=cv2.BORDER_REPLICATE, flags=flags)  # INTERPOLATION_METHOD
 
     return mat_result
 

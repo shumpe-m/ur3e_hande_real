@@ -6,17 +6,18 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 
+from manipulate import UrControl
 from learning_scripts.inference.inference import Inference
 from learning_scripts.models.models import GraspModel, PlaceModel, MergeModel
 
 
 class Heatmap:
-   def __init__(self, model, a_space=None):
-      with open('./config/config.yml', 'r') as yml:
+   def __init__(self, model, a_space=None, ls_path=None):
+      with open(ls_path + '/config/config.yml', 'r') as yml:
          config = yaml.safe_load(yml)
       self.model = model
       self.model.eval()
-      self.inf = Inference()
+      self.inf = Inference(ls_path=ls_path)
       if a_space is not None:
          self.inf.a_space = a_space
       self.size_input = (config["inference"]["img_width"], config["inference"]["img_height"])
@@ -25,24 +26,32 @@ class Heatmap:
       self.reward_g_shape = (None, config["inference"]["reward_g_shape"], config["inference"]["reward_g_shape"], None)
 
       self.device = "cuda" if torch.cuda.is_available() else "cpu"
+      self.angle = None
       
 
    def calculate_heat(self, reward):
+      print(reward.shape)
       size_reward_center = (reward.shape[1] / 2, reward.shape[2] / 2)
-      scale = self.size_original_cropped[0] / self.size_output[0] * ((self.reward_g_shape[1] * 2 - 1) / reward.shape[1])
+      scale = self.size_original_cropped[0] / self.size_output[0] * ((self.reward_g_shape[1] * 2) / reward.shape[1])
 
       a_space_idx = range(len(self.inf.a_space))
-
+      length = 0
       heat_values = np.zeros(self.size_input[::-1], dtype=float)
       for i in a_space_idx:
-         if i == 7 or i == 8:
+         if i != 9:
             a = self.inf.a_space[i]
             rot_mat = cv2.getRotationMatrix2D(size_reward_center, -a * 180.0 / np.pi, scale)
             rot_mat[0][2] += self.size_input[0] / 2 - size_reward_center[0]
             rot_mat[1][2] += self.size_input[1] / 2 - size_reward_center[1]
             heat_values += cv2.warpAffine(reward[i], rot_mat, self.size_input, borderValue=0)
-
-      norm = (5 * heat_values.max() + 2) / 6
+            length += 1
+            self.angle = -a * 180 / 3.1415
+      #       print(self.angle)
+      # print(length)
+      if length > 2:
+         self.angle = None
+      norm = (5 * heat_values.max() + length) / 6
+      # norm = (5 * heat_values.max() + len(a_space_idx)) / 6
       # norm = heat_values.max()
 
       return heat_values * 255.0 / norm
@@ -70,30 +79,44 @@ class Heatmap:
       input_images = torch.permute(input_images, (0, 3, 1, 2)).float().to(self.device)
 
       if isinstance(goal_image, type(None)):
+         model_name = "Grasp Model"
          _, reward = self.model(input_images)
-         # print(torch.max(reward))
+         # print(torch.argmax(reward))
          # print(torch.min(reward))
       else:
+         model_name = "Place Model"
          base = goal_image
          image_goal = self.inf.get_images(goal_image)
          goal_input_images = torch.tensor(image_goal)
          goal_input_images = torch.permute(goal_input_images, (0, 3, 1, 2)).float().to(self.device)
          _, reward = self.model(input_images, goal_input_images)
+
       if reward_index is not None:
-         reward = reward[reward_index]
+         reward = reward[:,reward_index]
          reward = reward.unsqueeze(dim=1)
       # reward = np.maximum(reward, 0)
+      # print(reward.shape)
+      print(torch.max(reward))
+
       reward = reward.to('cpu').detach().numpy().copy()
       reward_mean = np.mean(reward, axis=1)
       # reward_mean = reward[:, :, :, 0]
 
       heat_values = self.calculate_heat(reward_mean)
-
+      max = np.unravel_index(np.argmax(heat_values), heat_values.shape)
       heatmap = cv2.applyColorMap(heat_values.astype(np.uint8), cv2.COLORMAP_JET)
+
 
       base_heatmap = cv2.cvtColor(base, cv2.COLOR_GRAY2RGB) / 255 + (1 - alpha) * heatmap
       base = cv2.cvtColor(base, cv2.COLOR_GRAY2RGB)
-      base_heatmap = cv2.addWeighted(base_heatmap.astype(float), alpha, base.astype(float), 1.0, 0)
+      # base = cv2.bitwise_not(base)
+      base_heatmap = cv2.addWeighted(base_heatmap.astype(float), alpha, base.astype(float), 3.0, 0)
+      cv2.drawMarker(base_heatmap, (max[1], max[0]), (255, 255, 255), markerType=cv2.MARKER_TILTED_CROSS, markerSize=4)
+      if isinstance(self.angle, type(None)):
+         text = model_name + " rot: average"+ ",  primitive: " + str(reward_index)
+      else:
+         text = model_name + " rot: " + str(round(self.angle, 1)) + "[deg],  primitive: " + str(reward_index)
+      cv2.putText(base_heatmap, text, (int(150), int(self.size_input[1] - 20)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), thickness=1)
 
       if save_path:
          cv2.imwrite(str(save_path), base_heatmap)
@@ -114,7 +137,7 @@ if __name__ == '__main__':
 
       image_grasp = cv2.imread("./data/img/depth_grasp" + str(episode) + ".png", cv2.IMREAD_GRAYSCALE)
       image_place = cv2.imread("./data/img/depth_place_b" + str(episode) + ".png", cv2.IMREAD_GRAYSCALE)
-      image_goal = cv2.imread("./data/goal/goal_rec_x2.png", cv2.IMREAD_GRAYSCALE)
+      image_goal = cv2.imread("./data/goal/depth_goal00.png", cv2.IMREAD_GRAYSCALE)
 
 
       grasp_model = GraspModel(1).float().to(device)
@@ -140,7 +163,7 @@ if __name__ == '__main__':
       save_path = "./data/heatmaps"
       device = "cuda" if torch.cuda.is_available() else "cpu"
 
-      image_grasp = cv2.imread("./data/goal/rec_goal1.png", cv2.IMREAD_GRAYSCALE)
+      image_grasp = cv2.imread("./data/goal/depth_goal00.png", cv2.IMREAD_GRAYSCALE)
 
 
       grasp_model = GraspModel(1).float().to(device)
@@ -157,7 +180,7 @@ if __name__ == '__main__':
       device = "cuda" if torch.cuda.is_available() else "cpu"
 
       image_place = cv2.imread("./data/img/depth_place_b3.png", cv2.IMREAD_GRAYSCALE)
-      image_goal = cv2.imread("./data/goal/cir_goal1.png", cv2.IMREAD_GRAYSCALE)
+      image_goal = cv2.imread("./data/goal/depth_goal00.png", cv2.IMREAD_GRAYSCALE)
 
 
       place_model = PlaceModel(1*2).float().to(device)
